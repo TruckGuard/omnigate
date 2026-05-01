@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"time"
-	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -77,6 +77,7 @@ func HandleUpdateTransaction(c *gin.Context) {
 		if req.Status == "completed" || req.Status == "cancelled" {
 			now := time.Now()
 			tx.CompletedAt = &now
+			repository.RDB.Del(context.Background(), logic.ActiveTxKey(tx.GateID))
 		}
 	}
 
@@ -105,12 +106,3 @@ func HandleDeleteTransaction(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Transaction deleted"})
 }
 
-func StartTransactionCleanupTask() {
-	ticker := time.NewTicker(1 * time.Minute)
-	go func() {
-		for range ticker.C {
-			slog.Debug("Running stale transaction cleanup")
-			logic.CleanupStaleTransactions()
-		}
-	}()
-}

@@ -1,6 +1,7 @@
 package logic
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -9,15 +10,25 @@ import (
 	"github.com/omnigate/services/core/src/repository"
 )
 
-// FindOrCreateTransaction finds an active transaction for the gate or creates a new one
-func FindOrCreateTransaction(gateID string) uuid.UUID {
-	tx := repository.FindActiveTransaction(gateID)
+const TransactionTTL = 5 * time.Minute
 
-	if tx != nil {
-		// Touch updated_at
-		tx.UpdatedAt = time.Now()
-		repository.UpdateTransaction(tx)
-		return tx.ID
+func ActiveTxKey(gateID string) string {
+	return fmt.Sprintf("tx_active:%s", gateID)
+}
+
+// FindOrCreateTransaction checks Valkey for an active transaction for the gate.
+// If found, refreshes TTL and returns the ID.
+// If not found, creates a new transaction in DB and registers it in Valkey.
+func FindOrCreateTransaction(gateID string) uuid.UUID {
+	ctx := context.Background()
+	key := ActiveTxKey(gateID)
+
+	val, err := repository.RDB.Get(ctx, key).Result()
+	if err == nil {
+		repository.RDB.Expire(ctx, key, TransactionTTL)
+		if id, parseErr := uuid.Parse(val); parseErr == nil {
+			return id
+		}
 	}
 
 	code := generateTransactionCode(gateID)
@@ -26,8 +37,10 @@ func FindOrCreateTransaction(gateID string) uuid.UUID {
 		GateID: gateID,
 		Status: "active",
 	}
-
 	savedTx := repository.CreateTransaction(newTx)
+
+	repository.RDB.Set(ctx, key, savedTx.ID.String(), TransactionTTL)
+
 	return savedTx.ID
 }
 
@@ -40,17 +53,4 @@ func generateTransactionCode(gateID string) string {
 		now.Day(),
 		now.Unix()%1000000,
 	)
-}
-
-func CleanupStaleTransactions() {
-	// Close transactions inactive for 5 minutes
-	staleTxs := repository.GetStaleActiveTransactions(5 * time.Minute)
-	
-	now := time.Now()
-	for _, tx := range staleTxs {
-		tx.Status = "completed"
-		tx.CompletedAt = &now
-		tx.UpdatedAt = now
-		repository.UpdateTransaction(&tx)
-	}
 }

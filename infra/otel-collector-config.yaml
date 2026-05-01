@@ -10,6 +10,10 @@ processors:
   batch:
 
 exporters:
+  otlp/remote:
+    endpoint: "192.168.56.102:4317"
+    tls:
+      insecure: true
   debug:
 
 service:
@@ -17,12 +21,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [otlp/remote]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [otlp/remote]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [otlp/remote]

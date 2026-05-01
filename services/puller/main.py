@@ -13,15 +13,32 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 
 
 def init_otel(service_name: str) -> None:
-    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317")
+    endpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317")
     resource = Resource(attributes={"service.name": service_name})
-    provider = TracerProvider(resource=resource)
-    exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
+    
+    # Tracing
+    trace_provider = TracerProvider(resource=resource)
+    trace_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+    trace_provider.add_span_processor(BatchSpanProcessor(trace_exporter))
+    trace.set_tracer_provider(trace_provider)
+    
+    # Logging
+    log_provider = LoggerProvider(resource=resource)
+    set_logger_provider(log_provider)
+    log_exporter = OTLPLogExporter(endpoint=endpoint, insecure=True)
+    log_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
+    
+    # Add handler to root logger
+    handler = LoggingHandler(level=logging.NOTSET, logger_provider=log_provider)
+    logging.getLogger().addHandler(handler)
+
     RedisInstrumentor().instrument()
     RequestsInstrumentor().instrument()
     LoggingInstrumentor().instrument(set_logging_format=False)

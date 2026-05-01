@@ -20,6 +20,7 @@ func HandleIngest(c *gin.Context) {
 	sourceName := c.GetHeader("X-Source-Name")
 	gateID := c.GetHeader("X-Gate-ID")
 	permissions := c.GetHeader("X-Permissions")
+	slog.Info("Headers", "source_id", headerSourceID, "source_name", sourceName, "gate_id", gateID, "permissions", permissions)
 
 	if headerSourceID == "" || gateID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing authentication headers"})
@@ -52,17 +53,8 @@ func HandleIngest(c *gin.Context) {
 		payload = "{}" // Empty JSON if not provided
 	}
 
-	// Optional: transaction_id from Puller or other sources
+	// Pass through transaction_id if provided (e.g. from Puller); Core will create one if absent
 	transactionID := c.PostForm("transaction_id")
-	if transactionID == "" {
-		txID, err := repository.GetOrCreateTransaction(gateID)
-		if err != nil {
-			slog.Error("Failed to get/create transaction", "error", err)
-		} else {
-			transactionID = txID
-		}
-	}
-
 	var txnIDPtr *string
 	if transactionID != "" {
 		txnIDPtr = &transactionID

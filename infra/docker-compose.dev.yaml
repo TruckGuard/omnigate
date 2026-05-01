@@ -71,7 +71,7 @@ services:
       - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
       - PULLER_API_KEY=${PULLER_API_KEY}
       - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
     ports:
       - "8001:8080"
     healthcheck:
@@ -105,7 +105,7 @@ services:
       - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
       - PORT=8080
 
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
     ports:
       - "8002:8080"
     healthcheck:
@@ -133,7 +133,7 @@ services:
       - DATABASE_URL=postgres://${CORE_USER}:${CORE_PASSWORD}@db:5432/${CORE_DB_NAME}
       - VALKEY_ADDR=valkey:6379
       - PORT=8080
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
     ports:
       - "8003:8080"
     healthcheck:
@@ -165,7 +165,7 @@ services:
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
       - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
       - STORAGE_BUCKET=truckguard-data
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
     # No healthcheck needed for worker, but we wait for dependencies
     depends_on:
       core:
@@ -186,7 +186,7 @@ services:
       - INGESTOR_URL=http://gateway/ingest
       - WORKER_API_KEY=${PULLER_API_KEY}
       - VALKEY_ADDR=valkey:6379
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
     depends_on:
       valkey:
         condition: service_healthy
@@ -214,7 +214,7 @@ services:
       timeout: 3s
       retries: 5
   otel-collector:
-    image: otel/opentelemetry-collector:latest
+    image: otel/opentelemetry-collector-contrib:latest
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml

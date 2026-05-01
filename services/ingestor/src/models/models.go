@@ -28,7 +28,4 @@ type CoreDeviceConfig struct {
 	TriggerSourceID *string `json:"trigger_source_id"`
 }
 
-type CoreTransaction struct {
-	ID string `json:"id"`
-}
 

@@ -37,9 +37,6 @@ func main() {
 	}
 	repository.InitRedis(valkeyAddr)
 
-	// Start background cleanup task for sticky transactions
-	go handlers.StartTransactionCleanupTask()
-
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.Logger())
