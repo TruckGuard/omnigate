@@ -27,10 +27,8 @@ func main() {
 	}
 	defer telemetry.Shutdown(context.Background())
 
-	// Initialize DB
 	repository.InitDB(os.Getenv("DATABASE_URL"))
 
-	// Initialize Redis for caching
 	valkeyAddr := os.Getenv("VALKEY_ADDR")
 	if valkeyAddr == "" {
 		valkeyAddr = os.Getenv("REDIS_ADDR")
@@ -42,12 +40,10 @@ func main() {
 	r.Use(middleware.Logger())
 	r.Use(otelgin.Middleware("truckguard-core"))
 
-	// Health check
 	r.Match([]string{"GET", "HEAD"}, "/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// API routes (protected by NGINX auth_request)
 	api := r.Group("/api/v1")
 	{
 		// Events
@@ -73,6 +69,20 @@ func main() {
 		api.GET("/types", handlers.HandleListEventTypes)
 		api.GET("/types/:id", handlers.HandleGetEventType)
 		api.POST("/types", handlers.HandleCreateEventType)
+
+		// Gates
+		api.GET("/gates", handlers.HandleListGates)
+		api.GET("/gates/:id", handlers.HandleGetGate)
+		api.POST("/gates", handlers.HandleCreateGate)
+		api.PUT("/gates/:id", handlers.HandleUpdateGate)
+		api.DELETE("/gates/:id", handlers.HandleDeleteGate)
+
+		// User Profiles (?auth_id=<uint> on GET /profiles for lookup by auth ID)
+		api.GET("/profiles", handlers.HandleListUserProfiles)
+		api.GET("/profiles/:id", handlers.HandleGetUserProfile)
+		api.POST("/profiles", handlers.HandleCreateUserProfile)
+		api.PUT("/profiles/:id", handlers.HandleUpdateUserProfile)
+		api.DELETE("/profiles/:id", handlers.HandleDeleteUserProfile)
 	}
 
 	port := os.Getenv("PORT")

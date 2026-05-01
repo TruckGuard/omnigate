@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,8 +13,23 @@ import (
 )
 
 func HandleListTransactions(c *gin.Context) {
-	txs := repository.ListTransactions()
-	c.JSON(http.StatusOK, txs)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	txs, total := repository.ListTransactions(repository.TransactionFilter{
+		GateID: c.Query("gate_id"),
+		Status: c.Query("status"),
+		Search: c.Query("search"),
+		Page:   page,
+		Limit:  limit,
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  txs,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
 }
 
 func HandleGetTransaction(c *gin.Context) {
@@ -42,7 +58,6 @@ func HandleCreateTransaction(c *gin.Context) {
 		return
 	}
 
-	// This is a manual creation, logic.FindOrCreateTransaction handles code gen
 	txID := logic.FindOrCreateTransaction(req.GateID)
 	tx := repository.GetTransaction(txID)
 
@@ -64,8 +79,8 @@ func HandleUpdateTransaction(c *gin.Context) {
 	}
 
 	var req struct {
-		Status       string  `json:"status"`
-		VehiclePlate *string `json:"vehicle_plate"`
+		Status string `json:"status"`
+		Note   string `json:"note"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -79,6 +94,10 @@ func HandleUpdateTransaction(c *gin.Context) {
 			tx.CompletedAt = &now
 			repository.RDB.Del(context.Background(), logic.ActiveTxKey(tx.GateID))
 		}
+	}
+
+	if req.Note != "" {
+		tx.Note = req.Note
 	}
 
 	tx.UpdatedAt = time.Now()
@@ -105,4 +124,3 @@ func HandleDeleteTransaction(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Transaction deleted"})
 }
-

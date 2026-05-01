@@ -22,7 +22,14 @@ func InitDB(dsn string) {
 	}
 
 	// AutoMigrate all models (order matters for foreign keys)
-	DB.AutoMigrate(&models.EventType{}, &models.Transaction{}, &models.Event{}, &models.DeviceConfig{})
+	DB.AutoMigrate(
+		&models.EventType{},
+		&models.Gate{},
+		&models.Transaction{},
+		&models.Event{},
+		&models.DeviceConfig{},
+		&models.UserProfile{},
+	)
 }
 
 func InitRedis(addr string) {
