@@ -8,26 +8,26 @@ env-up:
 
 # ─── Development ──────────────────────────────────────────────────────────────
 dev-up:
-	docker compose -f infra/docker-compose.dev.yaml up -d
+	docker compose --env-file .env -f infra/docker-compose.dev.yaml up -d
 
 dev-up-build:
-	docker compose -f infra/docker-compose.dev.yaml up -d --build
+	docker compose --env-file .env -f infra/docker-compose.dev.yaml up -d --build
 
 dev-down:
-	docker compose -f infra/docker-compose.dev.yaml down -v
+	docker compose --env-file .env -f infra/docker-compose.dev.yaml down -v
 
 dev-down-soft:
-	docker compose -f infra/docker-compose.dev.yaml down
+	docker compose --env-file .env -f infra/docker-compose.dev.yaml down
 
 dev-rebuild: dev-down dev-up-build
 
 dev-restart: dev-down dev-up
 
 logs:
-	docker compose -f infra/docker-compose.dev.yaml logs -f
+	docker compose --env-file .env -f infra/docker-compose.dev.yaml logs -f
 
 dev-init:
-	docker compose -f infra/docker-compose.dev.yaml up -d minio minio-init
+	docker compose --env-file .env -f infra/docker-compose.dev.yaml up -d minio minio-init
 	$(MAKE) dev-restart
 
 # ─── Production build ─────────────────────────────────────────────────────────

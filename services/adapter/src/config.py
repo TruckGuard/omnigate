@@ -5,11 +5,11 @@ from dataclasses import dataclass
 class Config:
     WORKER_SYSTEM_KEY: str = os.getenv("WORKER_SYSTEM_KEY", "")
     CORE_URL: str = os.getenv("CORE_URL", "http://gateway/api/v1")
-    PULLER_URL: str = os.getenv("PULLER_URL", "http://puller:8000")
     ANPR_URL: str = os.getenv("ANPR_URL", "http://anpr:8000/recognize")
-    
+
     REDIS_ADDR: str = os.getenv("VALKEY_ADDR", "valkey:6379")
     STREAM_RAW: str = "events:adapter"
+    STREAM_PULLER: str = "events:puller"
     STREAM_DLQ: str = "events:dlq"
     
     STORAGE_ENDPOINT: str = os.getenv("STORAGE_ENDPOINT", "garage:3900")

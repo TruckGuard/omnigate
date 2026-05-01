@@ -160,7 +160,6 @@ services:
     environment:
       - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
       - CORE_URL=http://gateway/api/v1
-      - PULLER_URL=http://puller:8000
       - VALKEY_ADDR=valkey:6379
       - STORAGE_ENDPOINT=garage:3900
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
@@ -186,19 +185,11 @@ services:
     environment:
       - INGESTOR_URL=http://gateway/ingest
       - WORKER_API_KEY=${PULLER_API_KEY}
-
-      - PORT=8000
+      - VALKEY_ADDR=valkey:6379
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-
-    ports:
-      - "8004:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-
+    depends_on:
+      valkey:
+        condition: service_healthy
     volumes:
       - ../services/puller:/app
 

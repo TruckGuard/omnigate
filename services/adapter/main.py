@@ -43,7 +43,7 @@ def main():
 
     redis = Redis.from_url(f"redis://{cfg.REDIS_ADDR}", decode_responses=True)
     core = CoreClient()
-    puller = PullerClient()
+    puller = PullerClient(redis)
     storage = MinioStorage()
     anpr = ANPRClient()
 
