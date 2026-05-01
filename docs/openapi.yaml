@@ -1,0 +1,873 @@
+openapi: 3.1.0
+info:
+  title: "OmniGate API"
+  version: "1.0.0"
+  description: "OmniGate Logistics & ANPR microservices gateway API."
+
+servers:
+  - url: http://localhost:8090
+    description: Dev Gateway (Nginx)
+
+tags:
+  - name: Auth
+    description: Authentication & Session Management
+  - name: Auth Admin
+    description: Admin User, Role, & API Key Management
+  - name: Ingestor
+    description: Ingestion of data from peripheral hardware
+  - name: Core Events
+    description: Standard events processing
+  - name: Core Transactions
+    description: Sticky session transactions
+  - name: Core Configuration
+    description: Device mappings and settings
+  - name: Core Types
+    description: Dynamic event types and schemas
+  - name: Puller
+    description: Internal asynchronous pollers
+  - name: Health
+    description: Service healthchecks
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ==============================
+  # AUTH SERVICE
+  # ==============================
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: User login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                ip:
+                  type: string
+                user_agent:
+                  type: string
+      responses:
+        '200':
+          description: Successful login
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  description: "Optional, defaults to operator"
+      responses:
+        '201':
+          description: Successfully registered
+  /api/auth/validate:
+    get:
+      tags:
+        - Auth
+      summary: Validate token (Internal)
+      responses:
+        '200':
+          description: Token is valid
+  /api/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout current session
+      responses:
+        '204':
+          description: Logged out
+  /api/auth/sessions:
+    get:
+      tags:
+        - Auth
+      summary: List active sessions
+      responses:
+        '200':
+          description: Sessions list
+  /api/auth/sessions/revoke:
+    post:
+      tags:
+        - Auth
+      summary: Revoke a specific session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session_id
+              properties:
+                session_id:
+                  type: string
+      responses:
+        '204':
+          description: Session revoked
+  /api/auth/sessions/revoke-all:
+    post:
+      tags:
+        - Auth
+      summary: Revoke all active sessions
+      responses:
+        '204':
+          description: All sessions revoked
+  /api/auth/change-password:
+    post:
+      tags:
+        - Auth
+      summary: Change user password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - current_password
+                - new_password
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        '200':
+          description: Password updated
+  /api/auth/hierarchy:
+    get:
+      tags:
+        - Auth
+      summary: Get permission hierarchy
+      responses:
+        '200':
+          description: Hierarchy returned
+  /api/auth/permissions:
+    get:
+      tags:
+        - Auth Admin
+      summary: List all permissions
+      responses:
+        '200':
+          description: Permissions returned
+
+  /api/auth/admin/users:
+    get:
+      tags:
+        - Auth Admin
+      summary: List users
+      responses:
+        '200':
+          description: OK
+  /api/auth/admin/users/{id}:
+    get:
+      tags:
+        - Auth Admin
+      summary: Get user details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Auth Admin
+      summary: Delete user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: OK
+  /api/auth/admin/users/{id}/role:
+    put:
+      tags:
+        - Auth Admin
+      summary: Update user role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role_id
+              properties:
+                role_id:
+                  type: integer
+      responses:
+        '200':
+          description: OK
+  /api/auth/admin/users/{id}/reset-password:
+    post:
+      tags:
+        - Auth Admin
+      summary: Admin reset password
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - new_password
+              properties:
+                new_password:
+                  type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/auth/admin/roles:
+    get:
+      tags:
+        - Auth Admin
+      summary: List roles
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Auth Admin
+      summary: Create role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: OK
+  /api/auth/admin/roles/{id}:
+    put:
+      tags:
+        - Auth Admin
+      summary: Update role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Auth Admin
+      summary: Delete role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: OK
+  /api/auth/admin/roles/{id}/permissions:
+    post:
+      tags:
+        - Auth Admin
+      summary: Assign permissions to role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - permission_ids
+              properties:
+                permission_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/auth/admin/keys:
+    get:
+      tags:
+        - Auth Admin
+      summary: List API keys
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Auth Admin
+      summary: Create new API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                gate_id:
+                  type: string
+                permission_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: OK
+  /api/auth/admin/keys/{id}:
+    put:
+      tags:
+        - Auth Admin
+      summary: Update API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - owner_name
+              properties:
+                owner_name:
+                  type: string
+                is_active:
+                  type: boolean
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Auth Admin
+      summary: Delete API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: OK
+  /api/auth/admin/keys/{id}/permissions:
+    put:
+      tags:
+        - Auth Admin
+      summary: Update key permissions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - permission_ids
+              properties:
+                permission_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/auth/health:
+    get:
+      tags:
+        - Health
+      summary: Auth Service Health
+      security: []
+      responses:
+        '200':
+          description: OK
+
+  # ==============================
+  # INGESTOR SERVICE
+  # ==============================
+  /ingest/event:
+    post:
+      tags:
+        - Ingestor
+      summary: Ingest an event (camera, scale, or other)
+      security:
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                payload:
+                  type: string
+                  description: JSON string of event data
+                image:
+                  type: string
+                  format: binary
+                  description: Optional image file
+                transaction_id:
+                  type: string
+                  description: Optional UUID of the transaction
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event_id:
+                    type: string
+                  image_key:
+                    type: string
+                  transaction_id:
+                    type: string
+                  trigger_enabled:
+                    type: boolean
+                  trigger_url:
+                    type: string
+
+  /ingest/health:
+    get:
+      tags:
+        - Health
+      summary: Ingestor Service Health
+      security: []
+      responses:
+        '200':
+          description: OK
+
+  # ==============================
+  # CORE SERVICE
+  # ==============================
+  /api/v1/events:
+    get:
+      tags:
+        - Core Events
+      summary: List events
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Core Events
+      summary: Create new event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - event_type_id
+                - gate_id
+                - source_id
+                - data
+              properties:
+                event_type_id:
+                  type: string
+                  format: uuid
+                gate_id:
+                  type: string
+                source_id:
+                  type: string
+                data:
+                  type: object
+                  description: Dynamic JSON data payload
+                raw_data_key:
+                  type: string
+                image_keys:
+                  type: array
+                  items:
+                    type: string
+                transaction_id:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: OK
+  /api/v1/events/{id}:
+    get:
+      tags:
+        - Core Events
+      summary: Get event details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Core Events
+      summary: Delete event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/v1/transactions:
+    get:
+      tags:
+        - Core Transactions
+      summary: List transactions
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Core Transactions
+      summary: Create transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - gate_id
+              properties:
+                gate_id:
+                  type: string
+      responses:
+        '201':
+          description: OK
+  /api/v1/transactions/{id}:
+    get:
+      tags:
+        - Core Transactions
+      summary: Get transaction details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    put:
+      tags:
+        - Core Transactions
+      summary: Update transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                vehicle_plate:
+                  type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Core Transactions
+      summary: Delete transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/v1/configs/device:
+    post:
+      tags:
+        - Core Configuration
+      summary: Create device configuration mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - source_id
+                - event_type_id
+                - gate_id
+                - data_mapping
+                - data_type
+              properties:
+                source_id:
+                  type: string
+                event_type_id:
+                  type: string
+                  format: uuid
+                gate_id:
+                  type: string
+                data_mapping:
+                  type: object
+                data_type:
+                  type: string
+                trigger_url:
+                  type: string
+                trigger_enabled:
+                  type: boolean
+      responses:
+        '201':
+          description: OK
+  /api/v1/configs/device/{source_id}:
+    get:
+      tags:
+        - Core Configuration
+      summary: Get config by source device ID
+      parameters:
+        - name: source_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/v1/configs/device/{id}:
+    put:
+      tags:
+        - Core Configuration
+      summary: Update device config
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+        - Core Configuration
+      summary: Delete device config
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/v1/types:
+    get:
+      tags:
+        - Core Types
+      summary: List event types schemas
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+        - Core Types
+      summary: Create new event type schema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - name
+                - fields
+              properties:
+                code:
+                  type: string
+                name:
+                  type: string
+                description:
+                  type: string
+                fields:
+                  type: object
+      responses:
+        '201':
+          description: OK
+  /api/v1/types/{id}:
+    get:
+      tags:
+        - Core Types
+      summary: Get event type details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+
+  /api/v1/health:
+    get:
+      tags:
+        - Health
+      summary: Core Service Health
+      security: []
+      responses:
+        '200':
+          description: OK
+
+  # ==============================
+  # PULLER SERVICE
+  # ==============================
+  /pull/pull:
+
+    post:
+      tags:
+        - Puller
+      summary: Trigger data pull (Internal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - trigger_url
+                - transaction_id
+                - gate_id
+                - source_id
+              properties:
+                trigger_url:
+                  type: string
+                transaction_id:
+                  type: string
+                gate_id:
+                  type: string
+                source_id:
+                  type: string
+                context:
+                  type: object
+      responses:
+        '200':
+          description: Pulled successfully
+  /puller/health:
+    get:
+      tags:
+        - Health
+      summary: Puller Service Health
+      security: []
+      responses:
+        '200':
+          description: OK

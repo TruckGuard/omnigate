@@ -1,0 +1,26 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Go binaries
+bin/
+services/*/bin/
+services/**/main
+
+# Dependencies
+vendor/
+node_modules/
+
+# IDEs
+.vscode/
+.idea/
+
+# Docker volumes (if any in-repo)
+data/
+postgres_data/
+garage_data/
+
+# OS files
+.DS_Store
+Thumbs.db

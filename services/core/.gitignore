@@ -1,0 +1,13 @@
+bin/
+main
+core-service
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+.env
+.env.*
+!.env.example

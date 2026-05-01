@@ -1,0 +1,237 @@
+services:
+  # Databases
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AUTH_DB_NAME: ${AUTH_DB_NAME}
+      AUTH_USER: ${AUTH_USER}
+      AUTH_PASSWORD: ${AUTH_PASSWORD}
+      CORE_DB_NAME: ${CORE_DB_NAME}
+      CORE_USER: ${CORE_USER}
+      CORE_PASSWORD: ${CORE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+  valkey:
+    image: valkey/valkey:8.0
+    ports:
+      - "6380:6379"
+    command: valkey-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+
+  garage:
+    build:
+      context: ./garage
+      dockerfile: Dockerfile
+    environment:
+      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+    volumes:
+      - garage_data:/data
+      - ./garage/garage.toml:/etc/garage.toml
+      - ./garage/entrypoint.sh:/entrypoint.sh
+    ports:
+      - "3900:3900"
+      - "3901:3901"
+      - "3902:3902"
+    healthcheck:
+      test: ["CMD", "garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+
+  # Services
+  auth:
+    build:
+      context: ../services/auth
+      dockerfile: Dockerfile.dev
+    environment:
+      - DATABASE_URL=postgres://${AUTH_USER}:${AUTH_PASSWORD}@db:5432/${AUTH_DB_NAME}
+      - VALKEY_ADDR=valkey:6379
+      - PORT=8080
+      - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
+      - PULLER_API_KEY=${PULLER_API_KEY}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    ports:
+      - "8001:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    volumes:
+      - ../services/auth:/app
+
+
+  ingestor:
+    build:
+      context: ../services/ingestor
+      dockerfile: Dockerfile.dev
+    environment:
+      - VALKEY_ADDR=valkey:6379
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - BUCKET_NAME=${STORAGE_BUCKET}
+      - CORE_URL=http://gateway
+      - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
+      - PORT=8080
+
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    ports:
+      - "8002:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+
+    depends_on:
+      valkey:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    volumes:
+      - ../services/ingestor:/app
+
+
+  core:
+    build:
+      context: ../services/core
+      dockerfile: Dockerfile.dev
+    environment:
+      - DATABASE_URL=postgres://${CORE_USER}:${CORE_PASSWORD}@db:5432/${CORE_DB_NAME}
+      - VALKEY_ADDR=valkey:6379
+      - PORT=8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    ports:
+      - "8003:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    volumes:
+      - ../services/core:/app
+
+
+  adapter:
+    build:
+      context: ../services/adapter
+      dockerfile: Dockerfile.dev
+    environment:
+      - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
+      - CORE_URL=http://gateway/api/v1
+      - PULLER_URL=http://puller:8000
+      - VALKEY_ADDR=valkey:6379
+      - STORAGE_ENDPOINT=garage:3900
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BUCKET=truckguard-data
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    # No healthcheck needed for worker, but we wait for dependencies
+    depends_on:
+      core:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    volumes:
+      - ../services/adapter:/app
+
+
+  puller:
+    build:
+      context: ../services/puller
+      dockerfile: Dockerfile.dev
+    environment:
+      - INGESTOR_URL=http://gateway/ingest
+      - WORKER_API_KEY=${PULLER_API_KEY}
+
+      - PORT=8000
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+
+    ports:
+      - "8004:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+
+    volumes:
+      - ../services/puller:/app
+
+
+  gateway:
+    image: nginx:1.25
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../docs:/docs:ro
+    ports:
+      - "8090:80"
+    depends_on:
+      auth:
+        condition: service_healthy
+      ingestor:
+        condition: service_healthy
+      core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+
+
+volumes:
+  postgres_data:
+  garage_data:
