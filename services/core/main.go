@@ -60,10 +60,11 @@ func main() {
 		api.DELETE("/transactions/:id", handlers.HandleDeleteTransaction)
 
 		// Device Configs
-		api.GET("/configs/device/:source_id", handlers.HandleGetDeviceConfig)
-		api.POST("/configs/device", handlers.HandleCreateDeviceConfig)
-		api.PUT("/configs/device/:id", handlers.HandleUpdateDeviceConfig)
-		api.DELETE("/configs/device/:id", handlers.HandleDeleteDeviceConfig)
+		api.GET("/configs/devices", handlers.HandleListDeviceConfigs)
+		api.GET("/configs/devices/:source_id", handlers.HandleGetDeviceConfig)
+		api.POST("/configs/devices", handlers.HandleCreateDeviceConfig)
+		api.PUT("/configs/devices/:id", handlers.HandleUpdateDeviceConfig)
+		api.DELETE("/configs/devices/:id", handlers.HandleDeleteDeviceConfig)
 
 		// Event Types
 		api.GET("/types", handlers.HandleListEventTypes)

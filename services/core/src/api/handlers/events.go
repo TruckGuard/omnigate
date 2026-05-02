@@ -114,6 +114,20 @@ func HandleDeleteEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Event deleted"})
 }
 
+func HandleGetLatestEventForSource(c *gin.Context) {
+	sourceID := c.Query("source_id")
+	if sourceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "source_id is required"})
+		return
+	}
+	event := repository.GetLatestEventForSource(sourceID)
+	if event == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No events found for this source"})
+		return
+	}
+	c.JSON(http.StatusOK, event)
+}
+
 // validateEventData validates event data against type schema
 func validateEventData(data datatypes.JSON, schema datatypes.JSON) error {
 	// Simple stub for json schema validation

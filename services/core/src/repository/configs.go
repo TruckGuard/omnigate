@@ -5,9 +5,23 @@ import (
 	"github.com/omnigate/services/core/src/models"
 )
 
+func ListDeviceConfigs() []models.DeviceConfig {
+	var configs []models.DeviceConfig
+	DB.Preload("EventType").Order("created_at desc").Find(&configs)
+	return configs
+}
+
 func CreateDeviceConfig(config *models.DeviceConfig) *models.DeviceConfig {
 	DB.Create(config)
 	return config
+}
+
+func GetDeviceConfigByID(id uuid.UUID) *models.DeviceConfig {
+	var config models.DeviceConfig
+	if err := DB.Preload("EventType").First(&config, "id = ?", id).Error; err != nil {
+		return nil
+	}
+	return &config
 }
 
 func GetDeviceConfigBySourceID(sourceID string) *models.DeviceConfig {

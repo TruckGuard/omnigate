@@ -39,3 +39,19 @@ func UpdateGate(gate *models.Gate) error {
 func DeleteGate(id uuid.UUID) error {
 	return DB.Delete(&models.Gate{}, id).Error
 }
+
+type GateStats struct {
+	TotalTransactions int64          `json:"total_transactions"`
+	OpenTransactions  int64          `json:"open_transactions"`
+	TotalDevices      int64          `json:"total_devices"`
+	RecentTransactions []models.Transaction `json:"recent_transactions"`
+}
+
+func GetGateStats(gateID string) GateStats {
+	var stats GateStats
+	DB.Model(&models.Transaction{}).Where("gate_id = ?", gateID).Count(&stats.TotalTransactions)
+	DB.Model(&models.Transaction{}).Where("gate_id = ? AND status = 'open'", gateID).Count(&stats.OpenTransactions)
+	DB.Model(&models.DeviceConfig{}).Where("gate_id = ?", gateID).Count(&stats.TotalDevices)
+	DB.Where("gate_id = ?", gateID).Order("created_at DESC").Limit(5).Find(&stats.RecentTransactions)
+	return stats
+}

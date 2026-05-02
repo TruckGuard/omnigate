@@ -14,7 +14,7 @@ class CoreClient:
         
     def get_device_config(self, source_id: str) -> Optional[Dict]:
         """Fetch device configuration from CORE service."""
-        url = f"{self.base_url}/configs/device/{source_id}"
+        url = f"{self.base_url}/configs/devices/{source_id}"
         
         try:
             response = requests.get(url, headers=self.headers, timeout=10)

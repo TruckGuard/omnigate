@@ -37,3 +37,11 @@ func GetEvent(id uuid.UUID) *models.Event {
 func DeleteEvent(id uuid.UUID) error {
 	return DB.Delete(&models.Event{}, id).Error
 }
+
+func GetLatestEventForSource(sourceID string) *models.Event {
+	var event models.Event
+	if err := DB.Where("source_id = ?", sourceID).Order("created_at DESC").First(&event).Error; err != nil {
+		return nil
+	}
+	return &event
+}

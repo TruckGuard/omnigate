@@ -55,3 +55,39 @@ func HandleCreateEventType(c *gin.Context) {
 	savedType := repository.CreateEventType(eventType)
 	c.JSON(http.StatusCreated, savedType)
 }
+
+func HandleUpdateEventType(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type ID"})
+		return
+	}
+
+	var req struct {
+		Name        *string        `json:"name"`
+		Description *string        `json:"description"`
+		Fields      datatypes.JSON `json:"fields"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	if req.Fields != nil {
+		updates["fields"] = req.Fields
+	}
+
+	updated := repository.UpdateEventType(id, updates)
+	if updated == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Event type not found"})
+		return
+	}
+	c.JSON(http.StatusOK, updated)
+}

@@ -131,7 +131,7 @@ def get_or_create_api_key(rv, hdrs, sid_key, api_key_cache, name, perms):
 
 def get_or_create_device_config(hdrs, source_id, event_type_id, **kw):
     r = requests.get(
-        f"{BASE_URL}/api/v1/configs/device/{source_id}", headers=hdrs, timeout=10
+        f"{BASE_URL}/api/v1/configs/devices/{source_id}", headers=hdrs, timeout=10
     )
     if r.status_code == 200:
         skip(f"Device config  (source_id={source_id})")
@@ -144,7 +144,7 @@ def get_or_create_device_config(hdrs, source_id, event_type_id, **kw):
         **kw,
     }
     r = requests.post(
-        f"{BASE_URL}/api/v1/configs/device", headers=hdrs, json=body, timeout=10
+        f"{BASE_URL}/api/v1/configs/devices", headers=hdrs, json=body, timeout=10
     )
     if r.status_code not in (200, 201):
         fail(f"Cannot create device config (source_id={source_id}): {r.text}")

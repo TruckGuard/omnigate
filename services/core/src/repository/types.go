@@ -23,3 +23,12 @@ func GetEventType(id uuid.UUID) *models.EventType {
 	}
 	return &eventType
 }
+
+func UpdateEventType(id uuid.UUID, updates map[string]interface{}) *models.EventType {
+	var eventType models.EventType
+	if err := DB.First(&eventType, id).Error; err != nil {
+		return nil
+	}
+	DB.Model(&eventType).Updates(updates)
+	return &eventType
+}

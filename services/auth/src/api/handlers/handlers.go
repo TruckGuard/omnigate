@@ -523,6 +523,7 @@ func HandleUpdateKey(c *gin.Context) {
 	var b struct {
 		OwnerName string `json:"owner_name"`
 		IsActive  bool   `json:"is_active"`
+		GateID    string `json:"gate_id"`
 	}
 	if err := c.BindJSON(&b); err != nil {
 		c.Status(400)
@@ -538,6 +539,7 @@ func HandleUpdateKey(c *gin.Context) {
 	repository.DB.WithContext(c.Request.Context()).Model(&key).Updates(map[string]interface{}{
 		"owner_name": b.OwnerName,
 		"is_active":  b.IsActive,
+		"gate_id":    b.GateID,
 	})
 
 	repository.RDB.Del(context.Background(), "auth:"+key.KeyHash)
