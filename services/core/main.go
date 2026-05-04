@@ -49,6 +49,7 @@ func main() {
 		// Events
 		api.POST("/events", handlers.HandleCreateEvent)
 		api.GET("/events", handlers.HandleListEvents)
+		api.GET("/events/latest", handlers.HandleGetLatestEventForSource)
 		api.GET("/events/:id", handlers.HandleGetEvent)
 		api.DELETE("/events/:id", handlers.HandleDeleteEvent)
 
@@ -70,6 +71,7 @@ func main() {
 		api.GET("/types", handlers.HandleListEventTypes)
 		api.GET("/types/:id", handlers.HandleGetEventType)
 		api.POST("/types", handlers.HandleCreateEventType)
+		api.PUT("/types/:id", handlers.HandleUpdateEventType)
 
 		// Gates
 		api.GET("/gates", handlers.HandleListGates)
@@ -77,6 +79,8 @@ func main() {
 		api.POST("/gates", handlers.HandleCreateGate)
 		api.PUT("/gates/:id", handlers.HandleUpdateGate)
 		api.DELETE("/gates/:id", handlers.HandleDeleteGate)
+		api.PUT("/gates/:id/settings", handlers.HandleUpdateGateSettings)
+		api.GET("/gates/:id/stats", handlers.HandleGetGateStats)
 
 		// User Profiles (?auth_id=<uint> on GET /profiles for lookup by auth ID)
 		api.GET("/profiles", handlers.HandleListUserProfiles)

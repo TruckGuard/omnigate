@@ -1,11 +1,14 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page as pageStore } from '$app/stores';
+  import { get } from 'svelte/store';
   import { toast } from 'svelte-sonner';
   import TopBar from '$lib/components/TopBar.svelte';
   import GateBadge from '$lib/components/GateBadge.svelte';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
   import { Badge } from '$lib/components/ui/badge/index.js';
+  import { Switch } from '$lib/components/ui/switch/index.js';
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '$lib/components/ui/table/index.js';
   import {
     Select, SelectContent, SelectItem, SelectTrigger,
@@ -17,12 +20,14 @@
 
   const PAGE_LIMIT = 20;
 
+  // Seed filters from URL params (e.g. links from gate detail page)
+  const _initialPage = get(pageStore);
   let transactions = $state<Transaction[]>([]);
   let total        = $state(0);
   let page         = $state(1);
-  let search       = $state('');
-  let gateFilter   = $state('');
-  let statusFilter = $state('');
+  let search       = $state(_initialPage.url.searchParams.get('search') ?? '');
+  let gateFilter   = $state(_initialPage.url.searchParams.get('gate_id') ?? '');
+  let openOnly     = $state(_initialPage.url.searchParams.get('open') === 'true');
   let gates        = $state<Gate[]>([]);
   let loading      = $state(false);
   let selectedId   = $state('');
@@ -39,9 +44,9 @@
     try {
       const res = await api.transactions.list({
         page, limit: PAGE_LIMIT,
-        ...(gateFilter   && { gate_id: gateFilter }),
-        ...(statusFilter && { status: statusFilter }),
-        ...(search       && { search }),
+        ...(gateFilter && { gate_id: gateFilter }),
+        ...(openOnly   && { open: 'true' }),
+        ...(search     && { search }),
       });
       if (prevTotal >= 0 && res.total > prevTotal) toast.success('New transaction started');
       prevTotal = res.total;
@@ -57,18 +62,23 @@
   $effect(() => { loadGates(); });
 
   $effect(() => {
-    const _deps = [page, search, gateFilter, statusFilter];
+    // Track deps so effect re-runs on filter/page changes
+    const _deps = [page, search, gateFilter, openOnly];
+    // Sync filters to URL without navigation
+    const params = new URLSearchParams();
+    if (gateFilter) params.set('gate_id', gateFilter);
+    if (openOnly)   params.set('open', 'true');
+    if (search)     params.set('search', search);
+    const qs = params.toString();
+    const newUrl = qs ? `/?${qs}` : '/';
+    if (window.location.search !== (qs ? `?${qs}` : '')) {
+      history.replaceState(null, '', newUrl);
+    }
     loadTransactions();
     const id = setInterval(loadTransactions, 10_000);
     return () => clearInterval(id);
   });
 
-  const statusVariant = (s: string): 'default' | 'secondary' | 'destructive' | 'outline' =>
-    s === 'active' ? 'default' : s === 'cancelled' ? 'destructive' : 'secondary';
-
-  const statusLabel: Record<string, string> = {
-    active: 'Active', completed: 'Closed', cancelled: 'Cancelled',
-  };
 </script>
 
 <TopBar crumbs={['OmniGate', 'Transactions']} title="Transactions">
@@ -105,17 +115,10 @@
       </SelectContent>
     </Select>
 
-    <Select type="single" bind:value={statusFilter} onValueChange={() => { page = 1; }}>
-      <SelectTrigger class="w-[160px]">
-        {statusLabel[statusFilter] ?? 'All statuses'}
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="">All statuses</SelectItem>
-        <SelectItem value="active">Active</SelectItem>
-        <SelectItem value="completed">Completed</SelectItem>
-        <SelectItem value="cancelled">Cancelled</SelectItem>
-      </SelectContent>
-    </Select>
+    <label class="flex items-center gap-2 text-[13px] cursor-pointer select-none">
+      <Switch bind:checked={openOnly} onCheckedChange={() => { page = 1; }} />
+      Open only
+    </label>
   </div>
 
   <!-- Table -->
@@ -127,7 +130,7 @@
           <TableHead class="w-[120px]">Time</TableHead>
           <TableHead class="w-[160px]">Gate</TableHead>
           <TableHead>Events</TableHead>
-          <TableHead class="w-[110px]">Status</TableHead>
+          <TableHead class="w-[80px]"></TableHead>
           <TableHead class="w-[48px]"></TableHead>
         </TableRow>
       </TableHeader>
@@ -154,9 +157,9 @@
               {tx.events?.length ?? 0} event{tx.events?.length === 1 ? '' : 's'}
             </TableCell>
             <TableCell>
-              <Badge variant={statusVariant(tx.status)}>
-                {statusLabel[tx.status] ?? tx.status}
-              </Badge>
+              {#if tx.is_open}
+                <Badge>Active</Badge>
+              {/if}
             </TableCell>
             <TableCell>
               <Button

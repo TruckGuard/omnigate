@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,22 +11,54 @@ import (
 	"github.com/omnigate/services/core/src/repository"
 )
 
-const TransactionTTL = 5 * time.Minute
+const defaultTransactionTTL = 30 * time.Minute
 
 func ActiveTxKey(gateID string) string {
 	return fmt.Sprintf("tx_active:%s", gateID)
 }
 
+type gateSettings struct {
+	TTLMinutes *int `json:"transaction_ttl_minutes"`
+	MaxEvents  *int `json:"max_events_per_transaction"`
+}
+
+func getGateSettings(gateID string) gateSettings {
+	gate := repository.GetGateByGateID(gateID)
+	if gate == nil {
+		return gateSettings{}
+	}
+	var s gateSettings
+	json.Unmarshal(gate.Settings, &s) //nolint:errcheck
+	return s
+}
+
+func GateTTL(gateID string) time.Duration {
+	s := getGateSettings(gateID)
+	if s.TTLMinutes != nil && *s.TTLMinutes > 0 {
+		return time.Duration(*s.TTLMinutes) * time.Minute
+	}
+	return defaultTransactionTTL
+}
+
+// MaxEventsForGate returns the max events per transaction (0 = unlimited).
+func MaxEventsForGate(gateID string) int {
+	s := getGateSettings(gateID)
+	if s.MaxEvents != nil && *s.MaxEvents > 0 {
+		return *s.MaxEvents
+	}
+	return 0
+}
+
 // FindOrCreateTransaction checks Valkey for an active transaction for the gate.
-// If found, refreshes TTL and returns the ID.
-// If not found, creates a new transaction in DB and registers it in Valkey.
+// If found, refreshes the TTL and returns the ID.
+// If the key has expired a new transaction is simply created — no DB status changes needed.
 func FindOrCreateTransaction(gateID string) uuid.UUID {
 	ctx := context.Background()
 	key := ActiveTxKey(gateID)
+	ttl := GateTTL(gateID)
 
-	val, err := repository.RDB.Get(ctx, key).Result()
-	if err == nil {
-		repository.RDB.Expire(ctx, key, TransactionTTL)
+	if val, err := repository.RDB.Get(ctx, key).Result(); err == nil {
+		repository.RDB.Expire(ctx, key, ttl)
 		if id, parseErr := uuid.Parse(val); parseErr == nil {
 			return id
 		}
@@ -35,12 +68,9 @@ func FindOrCreateTransaction(gateID string) uuid.UUID {
 	newTx := &models.Transaction{
 		Code:   code,
 		GateID: gateID,
-		Status: "active",
 	}
 	savedTx := repository.CreateTransaction(newTx)
-
-	repository.RDB.Set(ctx, key, savedTx.ID.String(), TransactionTTL)
-
+	repository.RDB.Set(ctx, key, savedTx.ID.String(), ttl)
 	return savedTx.ID
 }
 

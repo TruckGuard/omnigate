@@ -7,17 +7,18 @@ import (
 )
 
 type Transaction struct {
-	ID          uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	Code        string     `gorm:"type:varchar(50);unique;not null" json:"code"`
-	GateID      string     `gorm:"type:varchar(50);not null" json:"gate_id"`
-	Status      string     `gorm:"type:varchar(20);default:'active'" json:"status"`
-	Note        string     `gorm:"type:text" json:"note"`
+	ID     uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	Code   string    `gorm:"type:varchar(50);unique;not null" json:"code"`
+	GateID string    `gorm:"type:varchar(50);not null" json:"gate_id"`
+	Note   string    `gorm:"type:text" json:"note"`
 
-	Events      []Event    `gorm:"foreignKey:TransactionID" json:"events,omitempty"`
+	Events []Event `gorm:"foreignKey:TransactionID" json:"events,omitempty"`
 
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	CompletedAt *time.Time `json:"completed_at"`
+	// IsOpen is populated at query time by checking Valkey — not stored in DB.
+	IsOpen bool `gorm:"-" json:"is_open"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (Transaction) TableName() string {

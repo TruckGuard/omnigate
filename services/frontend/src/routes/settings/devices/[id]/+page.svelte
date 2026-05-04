@@ -8,7 +8,6 @@
   import PermGuard from '$lib/components/PermGuard.svelte';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
-  import { Textarea } from '$lib/components/ui/textarea/index.js';
   import { Switch } from '$lib/components/ui/switch/index.js';
   import { Badge } from '$lib/components/ui/badge/index.js';
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
@@ -19,8 +18,9 @@
   import {
     Select, SelectContent, SelectItem, SelectTrigger,
   } from '$lib/components/ui/select/index.js';
+  import MappingEditor from '$lib/components/MappingEditor.svelte';
   import { api } from '$lib/api.js';
-  import type { DeviceConfig, EventType, Gate, APIKey } from '$lib/types.js';
+  import type { DeviceConfig, Event, EventType, Gate, APIKey } from '$lib/types.js';
   import { ChevronLeft, Plus } from 'lucide-svelte';
 
   const deviceId = $derived($page.params.id ?? '');
@@ -29,18 +29,23 @@
   let gates      = $state<Gate[]>([]);
   let eventTypes = $state<EventType[]>([]);
   let apiKeys    = $state<APIKey[]>([]);
+  let allConfigs = $state<DeviceConfig[]>([]);
   let loading    = $state(get(page).params.id !== 'new');
   let saving     = $state(false);
   let confirmDelete = $state(false);
 
   // Form state
-  let sourceId       = $state('');
-  let gateId         = $state('');
-  let eventTypeId    = $state('');
-  let dataType       = $state('');
-  let mapping        = $state('{\n  "field": "$.path.to.value"\n}');
-  let triggerEnabled = $state(false);
-  let triggerUrl     = $state('');
+  let sourceId        = $state('');
+  let gateId          = $state('');
+  let eventTypeId     = $state('');
+  let dataType        = $state('');
+  let mappingObj      = $state<Record<string, string>>({});
+  let triggerEnabled  = $state(false);
+  let triggerUrl      = $state('');
+  let triggerSourceId = $state('');
+
+  // Latest event for mapping reference
+  let latestEvent = $state<Event | null>(null);
 
   // New key inline form
   let creatingKey  = $state(false);
@@ -65,8 +70,8 @@
   });
 
   $effect(() => {
-    Promise.all([api.gates.list(), api.types.list(), api.auth.keys.list()])
-      .then(([g, t, k]) => { gates = g; eventTypes = t; apiKeys = k; })
+    Promise.all([api.gates.list(), api.types.list(), api.auth.keys.list(), api.configs.list()])
+      .then(([g, t, k, c]) => { gates = g; eventTypes = t; apiKeys = k; allConfigs = c; })
       .catch(() => {});
   });
 
@@ -75,13 +80,18 @@
       (async () => {
         try {
           const cfg = await api.configs.get(deviceId);
-          sourceId       = cfg.source_id;
-          gateId         = cfg.gate_id;
-          eventTypeId    = cfg.event_type_id;
-          dataType       = cfg.data_type;
-          mapping        = JSON.stringify(cfg.data_mapping, null, 2);
-          triggerEnabled = cfg.trigger_enabled;
-          triggerUrl     = cfg.trigger_url ?? '';
+          sourceId        = cfg.source_id;
+          gateId          = cfg.gate_id;
+          eventTypeId     = cfg.event_type_id;
+          dataType        = cfg.data_type;
+          mappingObj      = cfg.data_mapping ?? {};
+          triggerEnabled  = cfg.trigger_enabled;
+          triggerUrl      = cfg.trigger_url ?? '';
+          triggerSourceId = cfg.trigger_source_id ?? '';
+          // Load latest event as mapping reference
+          api.events.latestForSource(cfg.source_id)
+            .then(e => { latestEvent = e; })
+            .catch(() => {});
         } catch {
           toast.error('Device not found');
           goto('/settings/devices');
@@ -135,26 +145,31 @@
     }
   }
 
-  async function handleSave() {
-    let dataMapping: Record<string, string>;
-    try { dataMapping = JSON.parse(mapping); }
-    catch { toast.error('Invalid JSON in mapping'); return; }
+  // Trigger relationship helpers
+  const triggeredByConfigs = $derived(
+    allConfigs.filter(c => c.trigger_source_id === sourceId && c.source_id !== sourceId)
+  );
+  const triggersConfig = $derived(
+    triggerSourceId ? allConfigs.find(c => c.source_id === triggerSourceId) : null
+  );
 
+  async function handleSave() {
     saving = true;
     try {
       if (isNew) {
         await api.configs.create({
           source_id: sourceId, gate_id: gateId,
           event_type_id: eventTypeId, data_type: dataType,
-          data_mapping: dataMapping, trigger_enabled: triggerEnabled,
+          data_mapping: mappingObj, trigger_enabled: triggerEnabled,
           trigger_url: triggerEnabled ? triggerUrl || null : null,
-          trigger_source_id: null,
+          trigger_source_id: triggerEnabled && triggerSourceId ? triggerSourceId : null,
         });
         toast.success('Device created');
       } else {
         await api.configs.update(deviceId, {
-          data_mapping: dataMapping, trigger_enabled: triggerEnabled,
+          data_mapping: mappingObj, trigger_enabled: triggerEnabled,
           trigger_url: triggerEnabled ? triggerUrl || null : null,
+          trigger_source_id: triggerEnabled && triggerSourceId ? triggerSourceId : null,
         });
         toast.success('Device saved');
       }
@@ -356,8 +371,12 @@
           <Input bind:value={dataType} placeholder="e.g. ANPR, WEIGHT" />
         </Field>
 
-        <Field label="Mapping overrides" hint="Optional — override individual fields from the type schema.">
-          <Textarea class="font-mono text-[12px]" rows={6} bind:value={mapping} />
+        <Field label="Data mapping" hint="Map device payload paths to event type fields.">
+          <MappingEditor
+            bind:value={mappingObj}
+            schema={selectedType?.fields ?? {}}
+            rawEvent={latestEvent ?? undefined}
+          />
         </Field>
       </CardContent>
     </Card>
@@ -378,13 +397,66 @@
           </div>
           <Switch bind:checked={triggerEnabled} />
         </div>
-        <div class="pt-3 {triggerEnabled ? '' : 'opacity-50 pointer-events-none'}">
-          <Field label="Trigger URL" hint="Puller will GET this URL when an event from this device fires.">
+        <div class="pt-3 space-y-4 {triggerEnabled ? '' : 'opacity-50 pointer-events-none'}">
+          <Field label="Trigger URL" hint="Puller will GET this URL and re-inject the response as a new event.">
             <Input bind:value={triggerUrl} placeholder="https://device.local/snapshot" />
+          </Field>
+          <Field label="Re-inject as device (source ID)" hint="The Puller will assume this device's identity when re-injecting the response. Leave empty to auto-detect.">
+            <Select type="single" bind:value={triggerSourceId}>
+              <SelectTrigger>
+                {#if triggerSourceId}
+                  {allConfigs.find(c => c.source_id === triggerSourceId)?.source_id ?? triggerSourceId}
+                {:else}
+                  None (use Puller default)
+                {/if}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None (use Puller default)</SelectItem>
+                {#each allConfigs.filter(c => c.source_id !== sourceId) as c}
+                  <SelectItem value={c.source_id}>
+                    {c.source_id}{c.event_type ? ` — ${c.event_type.code}` : ''}
+                  </SelectItem>
+                {/each}
+              </SelectContent>
+            </Select>
           </Field>
         </div>
       </CardContent>
     </Card>
+
+    <!-- Trigger relationships (edit mode only) -->
+    {#if !isNew && (triggeredByConfigs.length > 0 || triggersConfig)}
+      <Card>
+        <CardHeader>
+          <CardTitle>Trigger relationships</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          {#if triggersConfig}
+            <div class="flex items-center gap-2 text-[13px]">
+              <span class="text-muted-foreground w-[120px] shrink-0">Triggers →</span>
+              <a href="/settings/devices/{triggersConfig.id}" class="font-mono hover:underline text-primary">
+                {triggersConfig.source_id}
+              </a>
+              {#if triggersConfig.event_type}
+                <Badge variant="outline" class="text-[10px]">{triggersConfig.event_type.code}</Badge>
+              {/if}
+            </div>
+          {/if}
+          {#each triggeredByConfigs as trig (trig.id)}
+            <div class="flex items-center gap-2 text-[13px]">
+              <span class="text-muted-foreground w-[120px] shrink-0">← Triggered by</span>
+              <a href="/settings/devices/{trig.id}" class="font-mono hover:underline text-primary">
+                {trig.source_id}
+              </a>
+              {#if trig.event_type}
+                <Badge variant="outline" class="text-[10px]">{trig.event_type.code}</Badge>
+              {/if}
+            </div>
+          {/each}
+        </CardContent>
+      </Card>
+    {/if}
+
   </main>
 {/if}
 

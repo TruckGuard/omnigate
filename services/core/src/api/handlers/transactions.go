@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 	"time"
@@ -18,8 +17,8 @@ func HandleListTransactions(c *gin.Context) {
 
 	txs, total := repository.ListTransactions(repository.TransactionFilter{
 		GateID: c.Query("gate_id"),
-		Status: c.Query("status"),
 		Search: c.Query("search"),
+		Open:   c.Query("open") == "true",
 		Page:   page,
 		Limit:  limit,
 	})
@@ -60,7 +59,6 @@ func HandleCreateTransaction(c *gin.Context) {
 
 	txID := logic.FindOrCreateTransaction(req.GateID)
 	tx := repository.GetTransaction(txID)
-
 	c.JSON(http.StatusCreated, tx)
 }
 
@@ -79,27 +77,14 @@ func HandleUpdateTransaction(c *gin.Context) {
 	}
 
 	var req struct {
-		Status string `json:"status"`
-		Note   string `json:"note"`
+		Note string `json:"note"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if req.Status != "" {
-		tx.Status = req.Status
-		if req.Status == "completed" || req.Status == "cancelled" {
-			now := time.Now()
-			tx.CompletedAt = &now
-			repository.RDB.Del(context.Background(), logic.ActiveTxKey(tx.GateID))
-		}
-	}
-
-	if req.Note != "" {
-		tx.Note = req.Note
-	}
-
+	tx.Note = req.Note
 	tx.UpdatedAt = time.Now()
 	if err := repository.UpdateTransaction(tx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

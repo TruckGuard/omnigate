@@ -17,7 +17,7 @@
   import { api } from '$lib/api.js';
   import { timeAgo } from '$lib/utils.js';
   import type { AuthRole, AuthUser, UserProfile } from '$lib/types.js';
-  import { UserCog, Trash2, KeyRound } from 'lucide-svelte';
+  import { UserCog, Trash2, KeyRound, UserPlus } from 'lucide-svelte';
 
   let users    = $state<AuthUser[]>([]);
   let profiles = $state<Map<number, UserProfile>>(new Map());
@@ -25,12 +25,18 @@
   let loading  = $state(true);
   let saving   = $state(false);
 
-  let roleOpen    = $state(false);
-  let deleteOpen  = $state(false);
-  let pwOpen      = $state(false);
-  let selected    = $state<AuthUser | null>(null);
-  let editRoleId  = $state('');
-  let newPassword = $state('');
+  let roleOpen      = $state(false);
+  let deleteOpen    = $state(false);
+  let pwOpen        = $state(false);
+  let createOpen    = $state(false);
+  let selected      = $state<AuthUser | null>(null);
+  let editRoleId    = $state('');
+  let newPassword   = $state('');
+
+  // New user form
+  let newUsername   = $state('');
+  let newUserPass   = $state('');
+  let newUserRoleId = $state('');
 
   async function load() {
     try {
@@ -74,6 +80,26 @@
     }
   }
 
+  async function handleCreateUser() {
+    if (!newUsername || !newUserPass) { toast.error('Username and password are required'); return; }
+    saving = true;
+    try {
+      await api.auth.createUser({
+        username: newUsername,
+        password: newUserPass,
+        role_id: newUserRoleId ? Number(newUserRoleId) : undefined,
+      });
+      toast.success('User created');
+      createOpen = false;
+      newUsername = ''; newUserPass = ''; newUserRoleId = '';
+      await load();
+    } catch {
+      toast.error('Failed to create user');
+    } finally {
+      saving = false;
+    }
+  }
+
   async function handleResetPw() {
     if (!selected || !newPassword) return;
     saving = true;
@@ -90,7 +116,13 @@
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Users']} title="Users" />
+<TopBar crumbs={['OmniGate', 'Users']} title="Users">
+  {#snippet actions()}
+    <Button size="sm" onclick={() => (createOpen = true)}>
+      <UserPlus size={14} /> New user
+    </Button>
+  {/snippet}
+</TopBar>
 
 <main class="flex-1 p-6">
   <div class="rounded-md border border-border overflow-hidden">
@@ -203,6 +235,40 @@
     <DialogFooter>
       <Button variant="outline" onclick={() => (deleteOpen = false)}>Cancel</Button>
       <Button variant="destructive" onclick={handleDelete}>Delete</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+<!-- Create user dialog -->
+<Dialog bind:open={createOpen}>
+  <DialogContent class="max-w-sm">
+    <DialogHeader>
+      <DialogTitle>New user</DialogTitle>
+      <DialogDescription>Create a new account. The user can change their password after logging in.</DialogDescription>
+    </DialogHeader>
+    <div class="space-y-3 py-2">
+      <Field label="Username">
+        <Input bind:value={newUsername} placeholder="john.doe" class="font-mono" />
+      </Field>
+      <Field label="Password">
+        <Input type="password" bind:value={newUserPass} placeholder="Temporary password" />
+      </Field>
+      <Field label="Role">
+        <Select type="single" bind:value={newUserRoleId}>
+          <SelectTrigger>{roles.find(r => String(r.id) === newUserRoleId)?.name ?? 'Select role…'}</SelectTrigger>
+          <SelectContent>
+            {#each roles as r}
+              <SelectItem value={String(r.id)}>{r.name}</SelectItem>
+            {/each}
+          </SelectContent>
+        </Select>
+      </Field>
+    </div>
+    <DialogFooter>
+      <Button variant="outline" onclick={() => (createOpen = false)}>Cancel</Button>
+      <Button onclick={handleCreateUser} disabled={saving || !newUsername || !newUserPass}>
+        {saving ? 'Creating…' : 'Create user'}
+      </Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>

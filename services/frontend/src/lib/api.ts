@@ -3,9 +3,13 @@ import type {
   AuthRole,
   AuthUser,
   DeviceConfig,
+  Event,
   EventType,
   Gate,
+  GateSettings,
+  GateStats,
   Permission,
+  Session,
   Transaction,
   TransactionListResponse,
   UserProfile,
@@ -34,7 +38,7 @@ export interface TxQuery {
   page?: number;
   limit?: number;
   gate_id?: string;
-  status?: string;
+  open?: string;
   search?: string;
 }
 
@@ -51,6 +55,15 @@ export const api = {
       req<void>(`/api/auth/admin/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role_id: roleId }) }),
     resetPassword: (userId: number, password: string) =>
       req<void>(`/api/auth/admin/users/${userId}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
+    createUser: (d: { username: string; password: string; role_id?: number }) =>
+      req<AuthUser>('/api/auth/register', { method: 'POST', body: JSON.stringify(d) }),
+    sessions: () => req<Session[]>('/api/auth/sessions'),
+    revokeSession: (sessionId: string) =>
+      req<void>('/api/auth/sessions/revoke', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }),
+    revokeAllSessions: () =>
+      req<void>('/api/auth/sessions/revoke-all', { method: 'POST' }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      req<void>('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) }),
     roles: () => req<AuthRole[]>('/api/auth/admin/roles'),
     createRole: (data: { name: string; description: string }) =>
       req<AuthRole>('/api/auth/admin/roles', { method: 'POST', body: JSON.stringify(data) }),
@@ -78,12 +91,12 @@ export const api = {
       if (q.page)    p.set('page', String(q.page));
       if (q.limit)   p.set('limit', String(q.limit));
       if (q.gate_id) p.set('gate_id', q.gate_id);
-      if (q.status)  p.set('status', q.status);
+      if (q.open)    p.set('open', q.open);
       if (q.search)  p.set('search', q.search);
       return req<TransactionListResponse>(`/api/v1/transactions?${p}`);
     },
     get: (id: string) => req<Transaction>(`/api/v1/transactions/${id}`),
-    update: (id: string, data: { status?: string; note?: string }) =>
+    update: (id: string, data: { note?: string }) =>
       req<Transaction>(`/api/v1/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => req<void>(`/api/v1/transactions/${id}`, { method: 'DELETE' }),
   },
@@ -96,6 +109,9 @@ export const api = {
     update: (id: string, d: Partial<Gate>) =>
       req<Gate>(`/api/v1/gates/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
     delete: (id: string) => req<void>(`/api/v1/gates/${id}`, { method: 'DELETE' }),
+    updateSettings: (id: string, settings: GateSettings) =>
+      req<Gate>(`/api/v1/gates/${id}/settings`, { method: 'PUT', body: JSON.stringify(settings) }),
+    stats: (id: string) => req<GateStats>(`/api/v1/gates/${id}/stats`),
   },
 
   types: {
@@ -103,6 +119,8 @@ export const api = {
     get: (id: string) => req<EventType>(`/api/v1/types/${id}`),
     create: (d: { code: string; name: string; description: string; fields: Record<string, unknown> }) =>
       req<EventType>('/api/v1/types', { method: 'POST', body: JSON.stringify(d) }),
+    update: (id: string, d: { name?: string; description?: string; fields?: Record<string, unknown> }) =>
+      req<EventType>(`/api/v1/types/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
   },
 
   configs: {
@@ -110,7 +128,7 @@ export const api = {
     get: (sourceId: string) => req<DeviceConfig>(`/api/v1/configs/devices/${sourceId}`),
     create: (d: Omit<DeviceConfig, 'id' | 'created_at' | 'updated_at' | 'enabled' | 'event_type'>) =>
       req<DeviceConfig>('/api/v1/configs/devices', { method: 'POST', body: JSON.stringify(d) }),
-    update: (id: string, d: Partial<Pick<DeviceConfig, 'data_mapping' | 'trigger_enabled' | 'trigger_url'>>) =>
+    update: (id: string, d: Partial<Pick<DeviceConfig, 'data_mapping' | 'trigger_enabled' | 'trigger_url' | 'trigger_source_id'>>) =>
       req<DeviceConfig>(`/api/v1/configs/devices/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
     delete: (id: string) => req<void>(`/api/v1/configs/devices/${id}`, { method: 'DELETE' }),
   },
@@ -125,6 +143,18 @@ export const api = {
       req<UserProfile>('/api/v1/profiles', { method: 'POST', body: JSON.stringify(d) }),
     update: (id: string, d: Partial<UserProfile>) =>
       req<UserProfile>(`/api/v1/profiles/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  },
+
+  events: {
+    list: (q: { transaction_id?: string; gate_id?: string; source_id?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.transaction_id) p.set('transaction_id', q.transaction_id);
+      if (q.gate_id) p.set('gate_id', q.gate_id);
+      if (q.source_id) p.set('source_id', q.source_id);
+      return req<Event[]>(`/api/v1/events?${p}`);
+    },
+    latestForSource: (sourceId: string) =>
+      req<Event>(`/api/v1/events/latest?source_id=${encodeURIComponent(sourceId)}`),
   },
 
   imageUrl: (key: string) => `/data/${key}`,

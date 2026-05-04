@@ -79,9 +79,10 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 	}
 
 	var req struct {
-		DataMapping    *json.RawMessage `json:"data_mapping"`
-		TriggerEnabled *bool            `json:"trigger_enabled"`
-		TriggerURL     *string          `json:"trigger_url"`
+		DataMapping     *json.RawMessage `json:"data_mapping"`
+		TriggerEnabled  *bool            `json:"trigger_enabled"`
+		TriggerURL      *string          `json:"trigger_url"`
+		TriggerSourceID *string          `json:"trigger_source_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -96,6 +97,9 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 	}
 	if req.TriggerURL != nil {
 		config.TriggerURL = req.TriggerURL
+	}
+	if req.TriggerSourceID != nil {
+		config.TriggerSourceID = req.TriggerSourceID
 	}
 
 	if err := repository.UpdateDeviceConfig(&config); err != nil {

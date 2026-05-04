@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { toast } from 'svelte-sonner';
   import TopBar from '$lib/components/TopBar.svelte';
   import GateBadge from '$lib/components/GateBadge.svelte';
@@ -112,7 +113,7 @@
       </TableHeader>
       <TableBody>
         {#each gates as g (g.id)}
-          <TableRow>
+          <TableRow class="cursor-pointer" onclick={() => goto(`/settings/gates/${g.id}`)}>
             <TableCell><GateBadge gateId={g.gate_id} /></TableCell>
             <TableCell class="font-medium">{g.name}</TableCell>
             <TableCell class="text-[12px] text-muted-foreground">{g.location || '—'}</TableCell>
@@ -122,7 +123,7 @@
               </Badge>
             </TableCell>
             <TableCell>
-              <div class="flex gap-1">
+              <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
                 <Button variant="ghost" size="icon-sm" onclick={() => openEdit(g)}>
                   <Pencil size={13} />
                 </Button>

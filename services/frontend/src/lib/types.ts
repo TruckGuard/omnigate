@@ -1,3 +1,9 @@
+export interface GateSettings {
+  transaction_ttl_minutes?: number;
+  auto_close_transactions?: boolean;
+  max_events_per_transaction?: number;
+}
+
 export interface Gate {
   id: string;
   gate_id: string;
@@ -5,8 +11,18 @@ export interface Gate {
   location: string;
   description: string;
   status: 'active' | 'inactive';
+  settings?: GateSettings;
   created_at: string;
   updated_at: string;
+}
+
+export interface Session {
+  session_id: string;
+  user_id: number;
+  username: string;
+  role: string;
+  permissions?: string[];
+  created_at?: string;
 }
 
 export interface EventTypeField {
@@ -42,12 +58,11 @@ export interface Transaction {
   id: string;
   code: string;
   gate_id: string;
-  status: 'active' | 'completed' | 'cancelled';
+  is_open: boolean;
   note: string;
   events?: Event[];
   created_at: string;
   updated_at: string;
-  completed_at: string | null;
 }
 
 export interface TransactionListResponse {
@@ -55,6 +70,13 @@ export interface TransactionListResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+export interface GateStats {
+  total_transactions: number;
+  open_transactions: number;
+  total_devices: number;
+  recent_transactions: Transaction[];
 }
 
 export interface DeviceConfig {

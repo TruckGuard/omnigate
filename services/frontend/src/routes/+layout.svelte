@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { Toaster } from 'svelte-sonner';
-  import { LayoutGrid, Cpu, KeySquare, Layers, GitFork, Users, KeyRound, LogOut } from 'lucide-svelte';
+  import { LayoutGrid, Cpu, KeySquare, Layers, GitFork, Users, KeyRound, LogOut, UserCircle } from 'lucide-svelte';
   import type { Snippet } from 'svelte';
   import { authStore } from '$lib/stores/auth.svelte.js';
   import { api } from '$lib/api.js';
@@ -132,7 +132,10 @@
 
     <!-- User -->
     <div class="p-2 border-t border-border shrink-0">
-      <div class="flex items-center gap-2 px-2 h-9">
+      <a
+        href="/profile"
+        class="flex items-center gap-2 px-2 h-9 rounded-md transition-colors hover:bg-muted group"
+      >
         <div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] font-semibold text-primary-foreground shrink-0">
           {initials()}
         </div>
@@ -140,16 +143,16 @@
           <div class="text-[12px] font-medium truncate">{authStore.username ?? '—'}</div>
           <div class="text-[11px] text-muted-foreground capitalize">{authStore.role ?? ''}</div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onclick={handleLogout}
-          title="Sign out"
-          class="text-muted-foreground hover:text-destructive shrink-0"
-        >
-          <LogOut size={14} />
-        </Button>
-      </div>
+        <UserCircle size={14} class="text-muted-foreground group-hover:text-foreground shrink-0" />
+      </a>
+      <Button
+        variant="ghost"
+        size="sm"
+        onclick={handleLogout}
+        class="w-full justify-start gap-2 text-muted-foreground hover:text-destructive mt-0.5 px-2"
+      >
+        <LogOut size={14} /> Sign out
+      </Button>
     </div>
   </aside>
   {/if}

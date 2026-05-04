@@ -53,7 +53,7 @@
             <TableCell class="font-mono text-[12px]">{cfg.source_id}</TableCell>
             <TableCell>
               {@const g = gates.find(x => x.gate_id === cfg.gate_id)}
-              <GateBadge gateId={cfg.gate_id} name={g?.name ?? ''} href="/settings/gates" />
+              <GateBadge gateId={cfg.gate_id} name={g?.name ?? ''} href={g ? `/settings/gates/${g.id}` : undefined} />
             </TableCell>
             <TableCell>
               {#if cfg.event_type}
@@ -63,10 +63,16 @@
               {/if}
             </TableCell>
             <TableCell>
-              {#if cfg.trigger_enabled}
-                <Badge>Enabled</Badge>
+              {@const triggeredBy = configs.find(c => c.trigger_source_id === cfg.source_id && c.source_id !== cfg.source_id)}
+              {@const triggers = cfg.trigger_source_id ? configs.find(c => c.source_id === cfg.trigger_source_id) : null}
+              {#if triggers}
+                <span class="text-[11px] font-mono text-muted-foreground">→ {triggers.source_id}</span>
+              {:else if triggeredBy}
+                <span class="text-[11px] font-mono text-muted-foreground">← {triggeredBy.source_id}</span>
+              {:else if cfg.trigger_enabled}
+                <Badge variant="outline" class="text-[10px]">URL</Badge>
               {:else}
-                <span class="text-[12px] text-muted-foreground">Off</span>
+                <span class="text-[12px] text-muted-foreground">—</span>
               {/if}
             </TableCell>
             <TableCell>

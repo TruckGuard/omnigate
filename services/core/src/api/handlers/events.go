@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -47,8 +48,14 @@ func HandleCreateEvent(c *gin.Context) {
 		// Transaction provided by Puller
 		transactionID = *req.TransactionID
 	} else {
-		// Find or create transaction for this gate
 		transactionID = logic.FindOrCreateTransaction(req.GateID)
+		// Enforce max events per transaction
+		if max := logic.MaxEventsForGate(req.GateID); max > 0 {
+			if repository.CountEventsForTransaction(transactionID) >= int64(max) {
+				repository.RDB.Del(context.Background(), logic.ActiveTxKey(req.GateID))
+				transactionID = logic.FindOrCreateTransaction(req.GateID)
+			}
+		}
 	}
 
 	imgBytes, _ := json.Marshal(req.ImageKeys)
