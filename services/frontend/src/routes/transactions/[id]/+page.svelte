@@ -8,12 +8,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
-  import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-  } from "$lib/components/ui/card/index.js";
+  import { Card, CardContent } from "$lib/components/ui/card/index.js";
   import {
     Dialog,
     DialogContent,
@@ -23,7 +18,7 @@
   import { api } from "$lib/api.js";
   import { fmtDate, fmtTime, fmtDateTime } from "$lib/utils.js";
   import type { Transaction } from "$lib/types.js";
-  import { ChevronLeft, Camera, ChevronsRight } from "lucide-svelte";
+  import { ChevronLeft, Camera } from "lucide-svelte";
 
   const txId = $derived($page.params.id ?? "");
 
@@ -63,14 +58,25 @@
     }
   }
 
+  const sortedEvents = $derived(
+    [...(tx?.events ?? [])].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    ),
+  );
+
   const allImages = $derived(
-    (tx?.events ?? []).flatMap((ev) =>
+    sortedEvents.flatMap((ev) =>
       (ev.image_keys ?? []).map((key) => ({
         key,
         label: `${ev.source_id} · ${fmtTime(ev.created_at)}`,
       })),
     ),
   );
+
+  function tryFormatJson(s: string): string {
+    try { return JSON.stringify(JSON.parse(s), null, 2); }
+    catch { return s; }
+  }
 </script>
 
 <TopBar crumbs={["OmniGate", "Транзакції", tx?.code ?? "…"]}>
@@ -84,8 +90,10 @@
     Завантаження…
   </div>
 {:else if tx}
-  <main class="flex-1 p-6 space-y-5">
-    <div class="flex items-center gap-3 flex-wrap">
+  <main class="flex-1 p-4 sm:p-6 space-y-4">
+
+    <!-- Header row -->
+    <div class="flex items-center gap-2 flex-wrap">
       <Button variant="ghost" size="sm" onclick={() => goto("/")}>
         <ChevronLeft size={14} /> Назад
       </Button>
@@ -96,108 +104,143 @@
         <Badge variant="secondary">Закрита</Badge>
       {/if}
       <GateBadge gateId={tx.gate_id} dot />
-      <span class="text-sm text-muted-foreground">
-        відкрито {fmtTime(tx.created_at)} · {fmtDate(tx.created_at)} · {tx.events
-          ?.length ?? 0} подій · {allImages.length} фото
+    </div>
+
+    <!-- Transaction meta — compact horizontal strip -->
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-border bg-card px-4 py-2.5 text-xs">
+      <div class="flex items-center gap-1.5">
+        <span class="text-muted-foreground">ID</span>
+        <span class="font-mono">{tx.id}</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="text-muted-foreground">Відкрито</span>
+        <span>{fmtDateTime(tx.created_at)}</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="text-muted-foreground">Шлагбаум</span>
+        <GateBadge gateId={tx.gate_id} />
+      </div>
+      <span class="text-muted-foreground">
+        {sortedEvents.length} {sortedEvents.length === 1 ? 'подія' : 'подій'}
+        {#if allImages.length} · {allImages.length} фото{/if}
       </span>
     </div>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-6">
-      <!-- Timeline -->
-      <div>
-        <h2 class="text-base font-semibold mb-3">Хронологія</h2>
-        {#if tx.events?.length}
-          <div class="relative pl-5">
-            <div
-              class="absolute left-1.5 top-1.5 bottom-1.5 w-px bg-border"
-            ></div>
-            <div class="space-y-3">
-              {#each tx.events as ev (ev.id)}
-                <div class="relative">
-                  <span
-                    class="absolute -left-[18px] top-3 w-2.5 h-2.5 rounded-full bg-background border-2 border-primary"
-                  ></span>
-                  <Card>
-                    <CardContent>
-                      <div class="flex items-baseline justify-between">
-                        <div class="flex items-center gap-2">
-                          <ChevronsRight
-                            size={14}
-                            class="text-muted-foreground shrink-0"
-                          />
-                          <span class="text-sm font-semibold"
-                            >{ev.source_id}</span
-                          >
+    <!-- Body: flex so photo sidebar only occupies space when photos exist -->
+    <div class="flex flex-col lg:flex-row gap-6 items-start">
+
+      <!-- ── LEFT: Timeline ── -->
+      <div class="flex-1 min-w-0">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+          Хронологія · {sortedEvents.length > 0 ? 'найновіші зверху' : ''}
+        </h2>
+
+        {#if sortedEvents.length}
+          <div>
+            {#each sortedEvents as ev, i (ev.id)}
+              <div class="flex gap-3 sm:gap-5">
+
+                <!-- Time column — desktop only -->
+                <div class="hidden sm:flex flex-col items-end w-[52px] shrink-0 pt-[13px]">
+                  <span class="text-[11px] font-mono font-semibold tabular-nums leading-none">
+                    {fmtTime(ev.created_at)}
+                  </span>
+                  <span class="text-[10px] text-muted-foreground mt-0.5">
+                    {fmtDate(ev.created_at)}
+                  </span>
+                </div>
+
+                <!-- Dot + vertical line -->
+                <div class="flex flex-col items-center w-4 shrink-0">
+                  <div class="mt-[13px] w-3 h-3 rounded-full border-2 border-primary bg-background shrink-0 z-10"></div>
+                  {#if i < sortedEvents.length - 1}
+                    <div class="w-px flex-1 bg-border mt-1 min-h-[8px]"></div>
+                  {/if}
+                </div>
+
+                <!-- Event card -->
+                <div class="flex-1 pb-3 min-w-0">
+                  <Card class="overflow-hidden">
+                    <CardContent class="p-3 sm:p-4">
+
+                      <!-- Card header: type name + source badge + time (mobile) -->
+                      <div class="flex items-start justify-between gap-2 mb-2">
+                        <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <span class="text-sm font-semibold leading-tight">
+                            {ev.event_type?.name ?? 'Подія'}
+                          </span>
+                          <Badge variant="outline" class="font-mono text-[11px] shrink-0 px-1.5">
+                            {ev.source_id}
+                          </Badge>
                         </div>
-                        <span
-                          class="font-mono text-xs text-muted-foreground"
-                          >{fmtTime(ev.created_at)}</span
-                        >
-                      </div>
-                      <div class="mb-2 flex items-center gap-2">
-                        <GateBadge gateId={ev.gate_id} />
-                        <span
-                          class="font-mono text-xs text-muted-foreground"
-                          >{ev.id.slice(0, 8)}…</span
-                        >
-                        {#if ev.event_type}
-                          <Badge variant="outline" class="text-xs"
-                            >{ev.event_type.name}</Badge
-                          >
-                        {/if}
-                      </div>
-                      <div class="flex gap-4">
-                        {#if Object.keys(ev.data).length > 0}
-                          <div
-                            class="grid grid-cols-[90px_1fr] gap-y-1 gap-x-3 text-sm"
-                          >
-                            {#each Object.entries(ev.data) as [k, v]}
-                              <div class="text-muted-foreground">{k}</div>
-                              <div class="font-mono">{String(v)}</div>
-                            {/each}
+                        <!-- Mobile-only timestamp -->
+                        <div class="sm:hidden shrink-0 text-right leading-none">
+                          <div class="text-[11px] font-mono font-semibold tabular-nums">
+                            {fmtTime(ev.created_at)}
                           </div>
-                        {/if}
-                        {#if ev.image_keys && ev.image_keys.length > 0}
-                          <div class="flex gap-2 col-span-2">
-                            {#each ev.image_keys as key (key)}
-                              <button
-                                type="button"
-                                onclick={() => {
-                                  openPhoto = {
-                                    key,
-                                    label: `${ev.source_id} · ${fmtTime(ev.created_at)}`,
-                                  };
-                                }}
-                                class="w-20 h-20 rounded-lg overflow-hidden border shrink-0 bg-muted hover:bg-muted/80 transition-colors"
-                              >
-                                <AuthImg
-                                  class="w-full h-full object-cover"
-                                  src={`/data/${key}`}
-                                  alt="фото"
-                                />
-                              </button>
-                            {/each}
+                          <div class="text-[10px] text-muted-foreground mt-0.5">
+                            {fmtDate(ev.created_at)}
                           </div>
-                        {/if}
+                        </div>
                       </div>
+
+                      <!-- Payload data grid -->
+                      {#if ev.data && Object.keys(ev.data).length > 0}
+                        <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 mb-3">
+                          {#each Object.entries(ev.data) as [k, v]}
+                            <span class="text-[12px] text-muted-foreground leading-5">{k}</span>
+                            <span class="text-[12px] font-mono font-medium leading-5 break-all">{String(v)}</span>
+                          {/each}
+                        </div>
+                      {/if}
+
+                      <!-- Image gallery — horizontal scroll with snapping -->
+                      {#if ev.image_keys?.length}
+                        <div class="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-1.5 -mx-3 px-3 sm:-mx-4 sm:px-4">
+                          {#each ev.image_keys as key (key)}
+                            <button
+                              type="button"
+                              onclick={() => (openPhoto = {
+                                key,
+                                label: `${ev.source_id} · ${fmtTime(ev.created_at)}`,
+                              })}
+                              class="h-36 sm:h-52 aspect-[4/3] shrink-0 rounded-md overflow-hidden border border-border bg-muted snap-start hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                            >
+                              <AuthImg
+                                src={api.imageUrl(key)}
+                                alt="фото події"
+                                class="w-full h-full object-cover"
+                              />
+                            </button>
+                          {/each}
+                        </div>
+                      {/if}
+
+                      <!-- Raw payload collapsible -->
+                      {#if ev.raw_payload}
+                        <details class="mt-2">
+                          <summary class="text-[11px] text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors inline-flex items-center gap-1">
+                            Сирі дані
+                          </summary>
+                          <pre class="mt-1.5 text-[10px] font-mono bg-muted rounded-md p-2.5 overflow-auto max-h-[160px] leading-relaxed">{tryFormatJson(ev.raw_payload)}</pre>
+                        </details>
+                      {/if}
+
                     </CardContent>
                   </Card>
                 </div>
-              {/each}
-            </div>
+
+              </div>
+            {/each}
           </div>
         {:else}
-          <p class="text-sm text-muted-foreground">Подій ще немає.</p>
+          <p class="text-sm text-muted-foreground py-4">Подій ще немає.</p>
         {/if}
 
         <!-- Note -->
         <div class="mt-5">
-          <h2 class="text-base font-semibold mb-2">Нотатка</h2>
-          <Textarea
-            bind:value={noteText}
-            rows={3}
-            placeholder="Додати нотатку про цю транзакцію…"
-          />
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-2">Нотатка</h2>
+          <Textarea bind:value={noteText} rows={3} placeholder="Додати нотатку про цю транзакцію…" />
           <div class="flex justify-end mt-2">
             <Button size="sm" onclick={saveNote} disabled={savingNote}>
               {savingNote ? "Збереження…" : "Зберегти нотатку"}
@@ -206,72 +249,34 @@
         </div>
       </div>
 
-      <!-- Photos + meta -->
-      <div class="space-y-5">
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-base font-semibold">Фотодокази</h2>
-            <span class="text-sm text-muted-foreground"
-              >{allImages.length} знімків</span
-            >
+      <!-- ── RIGHT: Photo gallery — only rendered when photos exist ── -->
+      {#if allImages.length}
+        <div class="w-full lg:w-[300px] shrink-0 lg:sticky lg:top-[52px] space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Фотодокази</h2>
+            <span class="text-xs text-muted-foreground">{allImages.length} знімків</span>
           </div>
-          {#if allImages.length}
-            <div class="grid grid-cols-4 gap-2.5">
-              {#each allImages as img}
-                <button
-                  onclick={() => (openPhoto = img)}
-                  class="aspect-[4/3] w-full bg-[#1e293b] rounded-md border border-border overflow-hidden relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                >
-                  <AuthImg
-                    src={api.imageUrl(img.key)}
-                    alt={img.label}
-                    class="absolute inset-0 w-full h-full object-cover"
-                  />
-                  <div
-                    class="absolute inset-0 flex items-end p-2 pointer-events-none"
-                  >
-                    <span class="text-[10px] text-white/75 font-mono"
-                      >{img.label}</span
-                    >
-                  </div>
-                  <Camera
-                    size={18}
-                    class="absolute top-1.5 right-1.5 text-white/60 drop-shadow"
-                  />
-                </button>
-              {/each}
-            </div>
-          {:else}
-            <p class="text-sm text-muted-foreground">Фото відсутні.</p>
-          {/if}
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2">
+            {#each allImages as img}
+              <button
+                onclick={() => (openPhoto = img)}
+                class="aspect-[4/3] w-full bg-muted rounded-md border border-border overflow-hidden relative hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              >
+                <AuthImg
+                  src={api.imageUrl(img.key)}
+                  alt={img.label}
+                  class="absolute inset-0 w-full h-full object-cover"
+                />
+                <div class="absolute inset-0 flex items-end p-1.5 pointer-events-none bg-gradient-to-t from-black/40 to-transparent">
+                  <span class="text-[10px] text-white/90 font-mono leading-tight">{img.label}</span>
+                </div>
+                <Camera size={13} class="absolute top-1.5 right-1.5 text-white/60 drop-shadow" />
+              </button>
+            {/each}
+          </div>
         </div>
+      {/if}
 
-        <Card>
-          <CardHeader class="pb-2">
-            <CardTitle class="text-base">Інформація про транзакцію</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              class="grid grid-cols-[110px_1fr] gap-y-2 gap-x-3 text-sm"
-            >
-              <span class="text-muted-foreground">ID</span>
-              <span class="font-mono text-xs">{tx.id}</span>
-              <span class="text-muted-foreground">Код</span>
-              <span class="font-mono text-xs">{tx.code}</span>
-              <span class="text-muted-foreground">Шлагбаум</span>
-              <GateBadge gateId={tx.gate_id} />
-              <span class="text-muted-foreground">Статус</span>
-              {#if tx.is_open}
-                <Badge class="w-fit">Активна</Badge>
-              {:else}
-                <Badge variant="secondary" class="w-fit">Закрита</Badge>
-              {/if}
-              <span class="text-muted-foreground">Відкрито</span>
-              <span>{fmtDateTime(tx.created_at)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   </main>
 {/if}

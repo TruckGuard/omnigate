@@ -3,9 +3,10 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { Toaster } from 'svelte-sonner';
-  import { LayoutGrid, Cpu, KeySquare, Layers, GitFork, Users, KeyRound, LogOut, UserCircle } from 'lucide-svelte';
+  import { LayoutGrid, Cpu, KeySquare, Layers, GitFork, Users, KeyRound, LogOut, UserCircle, X } from 'lucide-svelte';
   import type { Snippet } from 'svelte';
   import { authStore } from '$lib/stores/auth.svelte.js';
+  import { mobileNav } from '$lib/stores/mobileNav.svelte.js';
   import { api } from '$lib/api.js';
   import { Separator } from '$lib/components/ui/separator/index.js';
   import { Button } from '$lib/components/ui/button/index.js';
@@ -90,7 +91,9 @@
 
 <div class="min-h-screen flex bg-background" style="font-family: 'Inter', system-ui, sans-serif;">
   {#if !isLoginPage}
-  <aside class="w-[224px] shrink-0 bg-card border-r border-border h-screen sticky top-0 flex flex-col overflow-hidden">
+
+  <!-- Desktop sidebar -->
+  <aside class="hidden md:flex w-[224px] shrink-0 bg-card border-r border-border h-screen sticky top-0 flex-col overflow-hidden">
     <!-- Brand -->
     <div class="h-[52px] flex items-center gap-2 px-4 border-b border-border shrink-0">
       <div class="w-[22px] h-[22px] rounded-md bg-primary flex items-center justify-center shrink-0">
@@ -103,7 +106,6 @@
       </div>
       <span class="font-bold text-[15px] tracking-[-0.01em]">OmniGate</span>
     </div>
-
     <!-- Nav -->
     <nav class="p-2 flex flex-col flex-1 overflow-y-auto">
       {#each sections() as item}
@@ -127,13 +129,9 @@
         {/if}
       {/each}
     </nav>
-
     <!-- User -->
     <div class="p-2 border-t border-border shrink-0">
-      <a
-        href="/profile"
-        class="flex items-center gap-2 px-2 h-10 rounded-md transition-colors hover:bg-muted group"
-      >
+      <a href="/profile" class="flex items-center gap-2 px-2 h-10 rounded-md transition-colors hover:bg-muted group">
         <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-[11px] font-semibold text-primary-foreground shrink-0">
           {initials()}
         </div>
@@ -144,15 +142,95 @@
         <UserCircle size={14} class="text-muted-foreground group-hover:text-foreground shrink-0" />
       </a>
       <Button
-        variant="ghost"
-        size="sm"
-        onclick={handleLogout}
+        variant="ghost" size="sm" onclick={handleLogout}
         class="w-full justify-start gap-2 text-muted-foreground hover:text-destructive mt-0.5 px-2"
       >
         <LogOut size={14} /> Вийти
       </Button>
     </div>
   </aside>
+
+  <!-- Mobile drawer backdrop -->
+  {#if mobileNav.open}
+    <div
+      class="fixed inset-0 z-40 bg-black/50 md:hidden"
+      role="button"
+      tabindex="-1"
+      aria-label="Закрити меню"
+      onclick={() => mobileNav.close()}
+      onkeydown={(e) => e.key === 'Escape' && mobileNav.close()}
+    ></div>
+    <!-- Mobile drawer panel -->
+    <div class="fixed left-0 top-0 h-screen w-[260px] z-50 bg-card border-r border-border flex flex-col overflow-hidden md:hidden shadow-xl">
+      <!-- Brand + close -->
+      <div class="h-[52px] flex items-center gap-2 px-4 border-b border-border shrink-0">
+        <div class="w-[22px] h-[22px] rounded-md bg-primary flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 40 40" width="14" height="14">
+            <rect x="4" y="6" width="32" height="28" rx="4" fill="none" stroke="white" stroke-width="3"/>
+            <line x1="4" y1="14" x2="36" y2="14" stroke="white" stroke-width="3"/>
+            <line x1="14" y1="14" x2="14" y2="34" stroke="white" stroke-width="3"/>
+            <line x1="26" y1="14" x2="26" y2="34" stroke="white" stroke-width="3"/>
+          </svg>
+        </div>
+        <span class="font-bold text-[15px] tracking-[-0.01em] flex-1">OmniGate</span>
+        <button
+          class="flex items-center justify-center w-7 h-7 rounded-md hover:bg-muted text-muted-foreground"
+          onclick={() => mobileNav.close()}
+          aria-label="Закрити меню"
+        >
+          <X size={16} />
+        </button>
+      </div>
+      <!-- Nav -->
+      <nav class="p-2 flex flex-col flex-1 overflow-y-auto">
+        {#each sections() as item}
+          {#if !item.permission || authStore.can(item.permission)}
+            {#if item.firstInSection}
+              <p class="text-[10px] uppercase tracking-[0.06em] text-muted-foreground px-2 pt-3 pb-1 font-semibold">
+                {item.section}
+              </p>
+            {/if}
+            {@const active = activeId() === item.id}
+            <a
+              href={item.href}
+              onclick={() => mobileNav.close()}
+              class="flex items-center gap-2.5 h-9 px-2 rounded-md text-sm font-medium transition-colors duration-100
+                {active
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+            >
+              <item.icon size={15} />
+              {item.label}
+            </a>
+          {/if}
+        {/each}
+      </nav>
+      <!-- User -->
+      <div class="p-2 border-t border-border shrink-0">
+        <a
+          href="/profile"
+          onclick={() => mobileNav.close()}
+          class="flex items-center gap-2 px-2 h-10 rounded-md transition-colors hover:bg-muted group"
+        >
+          <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-[11px] font-semibold text-primary-foreground shrink-0">
+            {initials()}
+          </div>
+          <div class="leading-tight min-w-0 flex-1">
+            <div class="text-sm font-medium truncate">{authStore.username ?? '—'}</div>
+            <div class="text-xs text-muted-foreground capitalize">{authStore.role ?? ''}</div>
+          </div>
+          <UserCircle size={14} class="text-muted-foreground group-hover:text-foreground shrink-0" />
+        </a>
+        <Button
+          variant="ghost" size="sm" onclick={handleLogout}
+          class="w-full justify-start gap-2 text-muted-foreground hover:text-destructive mt-0.5 px-2"
+        >
+          <LogOut size={14} /> Вийти
+        </Button>
+      </div>
+    </div>
+  {/if}
+
   {/if}
 
   <div class="flex-1 min-w-0 flex flex-col min-h-screen">

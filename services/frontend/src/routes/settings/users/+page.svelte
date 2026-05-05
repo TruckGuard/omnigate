@@ -127,14 +127,14 @@
 </TopBar>
 
 <main class="flex-1 p-6">
-  <div class="rounded-md border border-border overflow-hidden">
+  <div class="rounded-md border border-border overflow-hidden overflow-x-auto">
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Логін</TableHead>
-          <TableHead class="w-[180px]">Ім'я</TableHead>
+          <TableHead class="hidden sm:table-cell w-[180px]">Ім'я</TableHead>
           <TableHead class="w-[120px]">Роль</TableHead>
-          <TableHead class="w-[130px]">Останній вхід</TableHead>
+          <TableHead class="hidden md:table-cell w-[130px]">Останній вхід</TableHead>
           <TableHead class="w-[100px]"></TableHead>
         </TableRow>
       </TableHeader>
@@ -143,7 +143,7 @@
           {@const profile = profiles.get(user.id)}
           <TableRow class="cursor-pointer" onclick={() => goto(`/settings/users/${user.id}`)}>
             <TableCell class="font-mono text-sm">{user.username}</TableCell>
-            <TableCell class="text-muted-foreground">
+            <TableCell class="hidden sm:table-cell text-muted-foreground">
               {profile ? `${profile.first_name} ${profile.last_name}`.trim() || '—' : '—'}
             </TableCell>
             <TableCell>
@@ -153,7 +153,7 @@
                 <span class="text-sm text-muted-foreground">—</span>
               {/if}
             </TableCell>
-            <TableCell class="text-sm text-muted-foreground">
+            <TableCell class="hidden md:table-cell text-sm text-muted-foreground">
               {user.last_login ? timeAgo(user.last_login) : 'Ніколи'}
             </TableCell>
             <TableCell>

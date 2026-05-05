@@ -226,7 +226,7 @@
 {#if loading}
   <div class="flex-1 flex items-center justify-center text-muted-foreground">Завантаження…</div>
 {:else}
-  <main class="flex-1 p-6 max-w-[920px] space-y-5">
+  <main class="flex-1 p-4 sm:p-6 max-w-[920px] space-y-5">
     <Button variant="ghost" size="sm" onclick={() => goto('/settings/devices')}>
       <ChevronLeft size={14} /> Пристрої
     </Button>
@@ -235,7 +235,7 @@
     <Card>
       <CardHeader><CardTitle>Ідентифікація</CardTitle></CardHeader>
       <CardContent class="space-y-4">
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Source ID = API Key -->
           <Field label="Джерело (API Ключ)" hint="API ключ, ID якого ідентифікує цей пристрій.">
             {#if isNew}

@@ -117,7 +117,7 @@
 {#if loading}
   <div class="flex-1 flex items-center justify-center text-muted-foreground">Завантаження…</div>
 {:else if user}
-  <main class="flex-1 p-6 max-w-[800px] space-y-5">
+  <main class="flex-1 p-4 sm:p-6 max-w-[800px] space-y-5">
     <!-- User header -->
     <div class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-semibold text-primary-foreground">
@@ -139,7 +139,7 @@
 
     <Separator />
 
-    <div class="grid grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <!-- Account -->
       <Card>
         <CardHeader><CardTitle>Акаунт</CardTitle></CardHeader>
@@ -180,7 +180,7 @@
           </div>
         </CardHeader>
         <CardContent class="space-y-4">
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Ім'я">
               <Input bind:value={fFirst} placeholder="Іван" />
             </Field>

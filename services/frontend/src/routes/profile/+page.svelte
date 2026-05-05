@@ -137,7 +137,7 @@
 
 <TopBar crumbs={['OmniGate', 'Профіль']} />
 
-<main class="flex-1 p-6 max-w-[1080px] grid grid-cols-[1fr_1.1fr] gap-6 items-start">
+<main class="flex-1 p-4 sm:p-6 max-w-[1080px] grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-6 items-start">
   <!-- Left column -->
   <div class="space-y-5">
     <!-- Account info -->
@@ -164,7 +164,7 @@
         {#if profileLoading}
           <p class="text-sm text-muted-foreground">Завантаження…</p>
         {:else}
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Ім'я">
               <Input bind:value={pfFirst} placeholder="Іван" />
             </Field>

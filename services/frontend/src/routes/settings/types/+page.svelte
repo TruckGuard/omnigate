@@ -210,7 +210,7 @@
       <DialogDescription>Визначте схему для нового типу IoT-події.</DialogDescription>
     </DialogHeader>
     <div class="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Код" hint="Короткий ідентифікатор у верхньому регістрі, напр. ANPR">
           <Input bind:value={newCode} placeholder="ANPR" oninput={() => newCode = newCode.toUpperCase()} />
         </Field>
@@ -234,18 +234,18 @@
         {/if}
         {#each newFields as f, i}
           <div class="rounded-md border border-border p-3 space-y-2 mb-2">
-            <div class="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+            <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 sm:items-end">
               <Field label="Ключ (ім'я JSON поля)">
                 <Input bind:value={f.key} placeholder="plate_number" class="font-mono text-sm" />
               </Field>
               <Field label="Відображувана назва">
                 <Input bind:value={f.name} placeholder="Номерний знак" />
               </Field>
-              <Button variant="ghost" size="icon-sm" class="mb-0.5 hover:text-destructive" onclick={() => removeField(i)}>
+              <Button variant="ghost" size="icon-sm" class="sm:mb-0.5 hover:text-destructive self-end" onclick={() => removeField(i)}>
                 <Trash2 size={13} />
               </Button>
             </div>
-            <div class="grid grid-cols-[1fr_120px_auto] gap-2 items-end">
+            <div class="grid grid-cols-1 sm:grid-cols-[1fr_120px_auto] gap-2 sm:items-end">
               <Field label="Опис">
                 <Input bind:value={f.description} placeholder="Номерний знак транспортного засобу" />
               </Field>
@@ -285,7 +285,7 @@
       <DialogDescription>Оновіть назву, опис або схему полів.</DialogDescription>
     </DialogHeader>
     <div class="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Назва">
           <Input bind:value={editName} placeholder="Розпізнавання номерного знаку" />
         </Field>
@@ -306,18 +306,18 @@
         {/if}
         {#each editFields as f, i}
           <div class="rounded-md border border-border p-3 space-y-2 mb-2">
-            <div class="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+            <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 sm:items-end">
               <Field label="Ключ (ім'я JSON поля)">
                 <Input bind:value={f.key} placeholder="plate_number" class="font-mono text-sm" />
               </Field>
               <Field label="Відображувана назва">
                 <Input bind:value={f.name} placeholder="Номерний знак" />
               </Field>
-              <Button variant="ghost" size="icon-sm" class="mb-0.5 hover:text-destructive" onclick={() => removeEditField(i)}>
+              <Button variant="ghost" size="icon-sm" class="sm:mb-0.5 hover:text-destructive self-end" onclick={() => removeEditField(i)}>
                 <Trash2 size={13} />
               </Button>
             </div>
-            <div class="grid grid-cols-[1fr_120px_auto] gap-2 items-end">
+            <div class="grid grid-cols-1 sm:grid-cols-[1fr_120px_auto] gap-2 sm:items-end">
               <Field label="Опис">
                 <Input bind:value={f.description} placeholder="Номерний знак транспортного засобу" />
               </Field>

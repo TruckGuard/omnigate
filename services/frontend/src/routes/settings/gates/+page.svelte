@@ -102,13 +102,13 @@
 </TopBar>
 
 <main class="flex-1 p-6">
-  <div class="rounded-md border border-border overflow-hidden">
+  <div class="rounded-md border border-border overflow-hidden overflow-x-auto">
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead class="w-[160px]">ID шлагбауму</TableHead>
           <TableHead>Назва</TableHead>
-          <TableHead>Місцезнаходження</TableHead>
+          <TableHead class="hidden sm:table-cell">Місцезнаходження</TableHead>
           <TableHead class="w-[90px]">Статус</TableHead>
           <TableHead class="w-[80px]"></TableHead>
         </TableRow>
@@ -118,7 +118,7 @@
           <TableRow class="cursor-pointer" onclick={() => goto(`/settings/gates/${g.id}`)}>
             <TableCell><GateBadge gateId={g.gate_id} /></TableCell>
             <TableCell class="font-medium">{g.name}</TableCell>
-            <TableCell class="text-sm text-muted-foreground">{g.location || '—'}</TableCell>
+            <TableCell class="hidden sm:table-cell text-sm text-muted-foreground">{g.location || '—'}</TableCell>
             <TableCell>
               <Badge variant={g.status === 'active' ? 'default' : 'secondary'}>
                 {g.status === 'active' ? 'Активний' : 'Неактивний'}
@@ -156,7 +156,7 @@
       <DialogTitle>{isNew ? 'Новий шлагбаум' : `Редагувати — ${selected?.gate_id}`}</DialogTitle>
     </DialogHeader>
     <div class="space-y-4 py-2">
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="ID шлагбауму" hint="Короткий унікальний ідентифікатор, напр. gate-north">
           <Input bind:value={fGateId} placeholder="gate-north" disabled={!isNew} class="font-mono" />
         </Field>

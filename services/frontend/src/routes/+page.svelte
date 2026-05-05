@@ -119,14 +119,14 @@
   </div>
 
   <!-- Table -->
-  <div class="rounded-md border border-border overflow-hidden">
+  <div class="rounded-md border border-border overflow-hidden overflow-x-auto">
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead class="w-[110px]">Код</TableHead>
           <TableHead class="w-[130px]">Час</TableHead>
-          <TableHead class="w-[160px]">Шлагбаум</TableHead>
-          <TableHead>Події</TableHead>
+          <TableHead class="hidden sm:table-cell w-[160px]">Шлагбаум</TableHead>
+          <TableHead class="hidden sm:table-cell">Події</TableHead>
           <TableHead class="w-[90px]"></TableHead>
           <TableHead class="w-[48px]"></TableHead>
         </TableRow>
@@ -149,8 +149,8 @@
                 <div class="text-xs text-muted-foreground mt-0.5">{fmtDate(tx.created_at)}</div>
               </div>
             </TableCell>
-            <TableCell><GateBadge gateId={tx.gate_id} dot /></TableCell>
-            <TableCell class="text-muted-foreground text-sm">
+            <TableCell class="hidden sm:table-cell"><GateBadge gateId={tx.gate_id} dot /></TableCell>
+            <TableCell class="hidden sm:table-cell text-muted-foreground text-sm">
               {tx.events?.length ?? 0} {(tx.events?.length ?? 0) === 1 ? 'подія' : 'подій'}
             </TableCell>
             <TableCell>

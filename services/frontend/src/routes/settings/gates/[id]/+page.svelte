@@ -79,7 +79,7 @@
 {#if loading}
   <div class="flex-1 flex items-center justify-center text-muted-foreground">Завантаження…</div>
 {:else if gate}
-  <main class="flex-1 p-6 max-w-[960px] space-y-5">
+  <main class="flex-1 p-4 sm:p-6 max-w-[960px] space-y-5">
 
     <!-- Header card -->
     <Card>
@@ -118,7 +118,7 @@
       </CardContent>
     </Card>
 
-    <div class="grid grid-cols-[1fr_1.1fr] gap-5 items-start">
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-5 items-start">
 
       <!-- Settings -->
       <Card>

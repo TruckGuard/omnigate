@@ -47,15 +47,15 @@
 </TopBar>
 
 <main class="flex-1 p-6">
-  <div class="rounded-md border border-border overflow-hidden">
+  <div class="rounded-md border border-border overflow-hidden overflow-x-auto">
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Пристрій</TableHead>
-          <TableHead class="w-[120px] text-muted-foreground text-xs">Source ID</TableHead>
-          <TableHead class="w-[160px]">Шлагбаум</TableHead>
-          <TableHead class="w-[150px]">Тип події</TableHead>
-          <TableHead class="w-[120px]">Тригер</TableHead>
+          <TableHead class="hidden md:table-cell w-[120px] text-muted-foreground text-xs">Source ID</TableHead>
+          <TableHead class="hidden sm:table-cell w-[160px]">Шлагбаум</TableHead>
+          <TableHead class="hidden sm:table-cell w-[150px]">Тип події</TableHead>
+          <TableHead class="hidden md:table-cell w-[120px]">Тригер</TableHead>
           <TableHead class="w-[90px]">Статус</TableHead>
           <TableHead class="w-[48px]"></TableHead>
         </TableRow>
@@ -64,19 +64,19 @@
         {#each configs as cfg (cfg.id)}
           <TableRow class="cursor-pointer" onclick={() => goto(`/settings/devices/${cfg.id}`)}>
             <TableCell class="font-medium">{deviceName(cfg)}</TableCell>
-            <TableCell class="font-mono text-xs text-muted-foreground">{cfg.source_id}</TableCell>
-            <TableCell>
+            <TableCell class="hidden md:table-cell font-mono text-xs text-muted-foreground">{cfg.source_id}</TableCell>
+            <TableCell class="hidden sm:table-cell">
               {@const g = gates.find(x => x.gate_id === cfg.gate_id)}
               <GateBadge gateId={cfg.gate_id} name={g?.name ?? ''} href={g ? `/settings/gates/${g.id}` : undefined} />
             </TableCell>
-            <TableCell>
+            <TableCell class="hidden sm:table-cell">
               {#if cfg.event_type}
                 <Badge variant="outline">{cfg.event_type.code}</Badge>
               {:else}
                 <span class="text-muted-foreground text-sm">—</span>
               {/if}
             </TableCell>
-            <TableCell>
+            <TableCell class="hidden md:table-cell">
               {@const triggeredBy = configs.find(c => c.trigger_source_id === cfg.source_id && c.source_id !== cfg.source_id)}
               {@const triggers = cfg.trigger_source_id ? configs.find(c => c.source_id === cfg.trigger_source_id) : null}
               {#if triggers}

@@ -76,11 +76,11 @@
   {/if}
 
   {#each rows as row, i}
-    <div class="flex items-center gap-2">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2">
       {#if schemaKeys.length > 0}
-        <div class="w-[180px] shrink-0">
+        <div class="w-full sm:w-[180px] sm:shrink-0">
           <Select type="single" bind:value={row.key}>
-            <SelectTrigger class="font-mono text-[12px] h-8">
+            <SelectTrigger class="font-mono text-[12px] h-8 w-full">
               {row.key || 'Field key…'}
             </SelectTrigger>
             <SelectContent>
@@ -94,16 +94,16 @@
         <Input
           bind:value={row.key}
           placeholder="field_key"
-          class="font-mono text-[12px] h-8 w-[180px] shrink-0"
+          class="font-mono text-[12px] h-8 w-full sm:w-[180px] sm:shrink-0"
         />
       {/if}
-      <span class="text-muted-foreground text-[12px] shrink-0">→</span>
+      <span class="hidden sm:inline text-muted-foreground text-[12px] shrink-0">→</span>
       <Input
         bind:value={row.path}
         placeholder="$.path.to.value"
         class="font-mono text-[12px] h-8 flex-1"
       />
-      <Button variant="ghost" size="icon-sm" class="hover:text-destructive shrink-0" onclick={() => removeRow(i)}>
+      <Button variant="ghost" size="icon-sm" class="hover:text-destructive shrink-0 self-end sm:self-auto" onclick={() => removeRow(i)}>
         <Trash2 size={12} />
       </Button>
     </div>
