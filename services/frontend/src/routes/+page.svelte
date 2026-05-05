@@ -20,7 +20,6 @@
 
   const PAGE_LIMIT = 20;
 
-  // Seed filters from URL params (e.g. links from gate detail page)
   const _initialPage = get(pageStore);
   let transactions = $state<Transaction[]>([]);
   let total        = $state(0);
@@ -48,12 +47,12 @@
         ...(openOnly   && { open: 'true' }),
         ...(search     && { search }),
       });
-      if (prevTotal >= 0 && res.total > prevTotal) toast.success('New transaction started');
+      if (prevTotal >= 0 && res.total > prevTotal) toast.success('Нова транзакція розпочата');
       prevTotal = res.total;
       transactions = res.data ?? [];
       total = res.total;
     } catch {
-      toast.error('Failed to load transactions');
+      toast.error('Помилка завантаження транзакцій');
     } finally {
       loading = false;
     }
@@ -62,9 +61,7 @@
   $effect(() => { loadGates(); });
 
   $effect(() => {
-    // Track deps so effect re-runs on filter/page changes
     const _deps = [page, search, gateFilter, openOnly];
-    // Sync filters to URL without navigation
     const params = new URLSearchParams();
     if (gateFilter) params.set('gate_id', gateFilter);
     if (openOnly)   params.set('open', 'true');
@@ -81,11 +78,11 @@
 
 </script>
 
-<TopBar crumbs={['OmniGate', 'Transactions']} title="Transactions">
+<TopBar crumbs={['OmniGate', 'Транзакції']} title="Транзакції">
   {#snippet actions()}
     <Button variant="outline" size="sm" onclick={loadTransactions} disabled={loading}>
       <RefreshCw size={14} class={loading ? 'animate-spin' : ''} />
-      Refresh
+      Оновити
     </Button>
   {/snippet}
 </TopBar>
@@ -97,27 +94,27 @@
       <Search size={14} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
       <Input
         class="pl-8"
-        placeholder="Search ID or plate…"
+        placeholder="Пошук ID або номеру…"
         bind:value={search}
         oninput={() => { page = 1; }}
       />
     </div>
 
     <Select type="single" bind:value={gateFilter} onValueChange={() => { page = 1; }}>
-      <SelectTrigger class="w-[180px]">
-        {gateFilter ? gates.find(g => g.gate_id === gateFilter)?.name ?? gateFilter : 'All gates'}
+      <SelectTrigger class="w-[200px]">
+        {gateFilter ? gates.find(g => g.gate_id === gateFilter)?.name ?? gateFilter : 'Всі шлагбауми'}
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="">All gates</SelectItem>
+        <SelectItem value="">Всі шлагбауми</SelectItem>
         {#each gates as g}
           <SelectItem value={g.gate_id}>{g.name}</SelectItem>
         {/each}
       </SelectContent>
     </Select>
 
-    <label class="flex items-center gap-2 text-[13px] cursor-pointer select-none">
+    <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
       <Switch bind:checked={openOnly} onCheckedChange={() => { page = 1; }} />
-      Open only
+      Тільки відкриті
     </label>
   </div>
 
@@ -126,11 +123,11 @@
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead class="w-[110px]">Code</TableHead>
-          <TableHead class="w-[120px]">Time</TableHead>
-          <TableHead class="w-[160px]">Gate</TableHead>
-          <TableHead>Events</TableHead>
-          <TableHead class="w-[80px]"></TableHead>
+          <TableHead class="w-[110px]">Код</TableHead>
+          <TableHead class="w-[130px]">Час</TableHead>
+          <TableHead class="w-[160px]">Шлагбаум</TableHead>
+          <TableHead>Події</TableHead>
+          <TableHead class="w-[90px]"></TableHead>
           <TableHead class="w-[48px]"></TableHead>
         </TableRow>
       </TableHeader>
@@ -143,22 +140,22 @@
             class="cursor-pointer {sel ? 'bg-primary/5' : ''}"
             style={sel ? 'box-shadow: inset 2px 0 0 hsl(var(--primary))' : undefined}
           >
-            <TableCell class="font-mono text-[12px]">{tx.code}</TableCell>
+            <TableCell class="font-mono text-sm">{tx.code}</TableCell>
             <TableCell>
               <div class="leading-none">
                 <div class="font-semibold tabular-nums">
-                  {new Date(tx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(tx.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
                 </div>
-                <div class="text-[11px] text-muted-foreground mt-0.5">{fmtDate(tx.created_at)}</div>
+                <div class="text-xs text-muted-foreground mt-0.5">{fmtDate(tx.created_at)}</div>
               </div>
             </TableCell>
             <TableCell><GateBadge gateId={tx.gate_id} dot /></TableCell>
-            <TableCell class="text-muted-foreground text-[12px]">
-              {tx.events?.length ?? 0} event{tx.events?.length === 1 ? '' : 's'}
+            <TableCell class="text-muted-foreground text-sm">
+              {tx.events?.length ?? 0} {(tx.events?.length ?? 0) === 1 ? 'подія' : 'подій'}
             </TableCell>
             <TableCell>
               {#if tx.is_open}
-                <Badge>Active</Badge>
+                <Badge>Активна</Badge>
               {/if}
             </TableCell>
             <TableCell>
@@ -175,7 +172,7 @@
         {#if transactions.length === 0}
           <TableRow>
             <TableCell colspan={6} class="py-10 text-center text-muted-foreground">
-              {loading ? 'Loading…' : 'No transactions found'}
+              {loading ? 'Завантаження…' : 'Транзакцій не знайдено'}
             </TableCell>
           </TableRow>
         {/if}
@@ -184,15 +181,15 @@
   </div>
 
   <!-- Pagination -->
-  <div class="flex items-center justify-between text-[12px] text-muted-foreground">
-    <span>{transactions.length} of {total} transactions</span>
+  <div class="flex items-center justify-between text-sm text-muted-foreground">
+    <span>{transactions.length} з {total} транзакцій</span>
     <div class="flex items-center gap-2">
       <Button variant="outline" size="sm" disabled={page <= 1 || loading} onclick={() => page--}>
-        Previous
+        Назад
       </Button>
-      <span class="px-2">Page {page} of {totalPages}</span>
+      <span class="px-2">Сторінка {page} з {totalPages}</span>
       <Button variant="outline" size="sm" disabled={page >= totalPages || loading} onclick={() => page++}>
-        Next
+        Далі
       </Button>
     </div>
   </div>

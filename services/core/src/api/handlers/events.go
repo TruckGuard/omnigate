@@ -10,6 +10,8 @@ import (
 	"github.com/omnigate/services/core/src/logic"
 	"github.com/omnigate/services/core/src/models"
 	"github.com/omnigate/services/core/src/repository"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/datatypes"
 )
 
@@ -29,6 +31,13 @@ func HandleCreateEvent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Enrich span with business context
+	span := trace.SpanFromContext(c.Request.Context())
+	span.SetAttributes(
+		attribute.String("truckguard.gate_id", req.GateID),
+		attribute.String("truckguard.source_id", req.SourceID),
+	)
 
 	// Validate event data against event type schema
 	eventType := repository.GetEventType(req.EventTypeID)
@@ -57,6 +66,8 @@ func HandleCreateEvent(c *gin.Context) {
 			}
 		}
 	}
+
+	span.SetAttributes(attribute.String("truckguard.transaction_id", transactionID.String()))
 
 	imgBytes, _ := json.Marshal(req.ImageKeys)
 

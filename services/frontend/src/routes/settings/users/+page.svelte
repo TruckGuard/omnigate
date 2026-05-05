@@ -33,7 +33,6 @@
   let editRoleId    = $state('');
   let newPassword   = $state('');
 
-  // New user form
   let newUsername   = $state('');
   let newUserPass   = $state('');
   let newUserRoleId = $state('');
@@ -45,7 +44,7 @@
       roles    = r;
       profiles = new Map(p.map(pr => [pr.auth_id, pr]));
     } catch {
-      toast.error('Failed to load users');
+      toast.error('Помилка завантаження користувачів');
     } finally {
       loading = false;
     }
@@ -58,11 +57,11 @@
     saving = true;
     try {
       await api.auth.updateUserRole(selected.id, Number(editRoleId));
-      toast.success('Role updated');
+      toast.success('Роль оновлено');
       roleOpen = false;
       await load();
     } catch {
-      toast.error('Failed to update role');
+      toast.error('Помилка оновлення ролі');
     } finally {
       saving = false;
     }
@@ -72,16 +71,16 @@
     if (!selected) return;
     try {
       await api.auth.deleteUser(selected.id);
-      toast.success('User deleted');
+      toast.success('Користувача видалено');
       deleteOpen = false;
       await load();
     } catch {
-      toast.error('Failed to delete user');
+      toast.error('Помилка видалення користувача');
     }
   }
 
   async function handleCreateUser() {
-    if (!newUsername || !newUserPass) { toast.error('Username and password are required'); return; }
+    if (!newUsername || !newUserPass) { toast.error('Логін та пароль обов\'язкові'); return; }
     saving = true;
     try {
       await api.auth.createUser({
@@ -89,12 +88,12 @@
         password: newUserPass,
         role_id: newUserRoleId ? Number(newUserRoleId) : undefined,
       });
-      toast.success('User created');
+      toast.success('Користувача створено');
       createOpen = false;
       newUsername = ''; newUserPass = ''; newUserRoleId = '';
       await load();
     } catch {
-      toast.error('Failed to create user');
+      toast.error('Помилка створення користувача');
     } finally {
       saving = false;
     }
@@ -105,21 +104,21 @@
     saving = true;
     try {
       await api.auth.resetPassword(selected.id, newPassword);
-      toast.success('Password reset');
+      toast.success('Пароль скинуто');
       pwOpen = false;
       newPassword = '';
     } catch {
-      toast.error('Failed to reset password');
+      toast.error('Помилка скидання пароля');
     } finally {
       saving = false;
     }
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Users']} title="Users">
+<TopBar crumbs={['OmniGate', 'Користувачі']} title="Користувачі">
   {#snippet actions()}
     <Button size="sm" onclick={() => (createOpen = true)}>
-      <UserPlus size={14} /> New user
+      <UserPlus size={14} /> Новий користувач
     </Button>
   {/snippet}
 </TopBar>
@@ -129,10 +128,10 @@
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Username</TableHead>
-          <TableHead class="w-[180px]">Name</TableHead>
-          <TableHead class="w-[120px]">Role</TableHead>
-          <TableHead class="w-[130px]">Last login</TableHead>
+          <TableHead>Логін</TableHead>
+          <TableHead class="w-[180px]">Ім'я</TableHead>
+          <TableHead class="w-[120px]">Роль</TableHead>
+          <TableHead class="w-[130px]">Останній вхід</TableHead>
           <TableHead class="w-[100px]"></TableHead>
         </TableRow>
       </TableHeader>
@@ -140,7 +139,7 @@
         {#each users as user (user.id)}
           {@const profile = profiles.get(user.id)}
           <TableRow class="cursor-pointer" onclick={() => goto(`/settings/users/${user.id}`)}>
-            <TableCell class="font-mono text-[12px]">{user.username}</TableCell>
+            <TableCell class="font-mono text-sm">{user.username}</TableCell>
             <TableCell class="text-muted-foreground">
               {profile ? `${profile.first_name} ${profile.last_name}`.trim() || '—' : '—'}
             </TableCell>
@@ -148,23 +147,23 @@
               {#if user.role}
                 <Badge variant="secondary">{user.role.name}</Badge>
               {:else}
-                <span class="text-[12px] text-muted-foreground">—</span>
+                <span class="text-sm text-muted-foreground">—</span>
               {/if}
             </TableCell>
-            <TableCell class="text-[12px] text-muted-foreground">
-              {user.last_login ? timeAgo(user.last_login) : 'Never'}
+            <TableCell class="text-sm text-muted-foreground">
+              {user.last_login ? timeAgo(user.last_login) : 'Ніколи'}
             </TableCell>
             <TableCell>
               <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon-sm" title="Edit role"
+                <Button variant="ghost" size="icon-sm" title="Редагувати роль"
                   onclick={() => { selected = user; editRoleId = String(user.role_id); roleOpen = true; }}>
                   <UserCog size={14} />
                 </Button>
-                <Button variant="ghost" size="icon-sm" title="Reset password"
+                <Button variant="ghost" size="icon-sm" title="Скинути пароль"
                   onclick={() => { selected = user; newPassword = ''; pwOpen = true; }}>
                   <KeyRound size={14} />
                 </Button>
-                <Button variant="ghost" size="icon-sm" title="Delete" class="hover:text-destructive"
+                <Button variant="ghost" size="icon-sm" title="Видалити" class="hover:text-destructive"
                   onclick={() => { selected = user; deleteOpen = true; }}>
                   <Trash2 size={14} />
                 </Button>
@@ -174,7 +173,7 @@
         {/each}
         {#if !loading && users.length === 0}
           <TableRow>
-            <TableCell colspan={5} class="py-10 text-center text-muted-foreground">No users found.</TableCell>
+            <TableCell colspan={5} class="py-10 text-center text-muted-foreground">Користувачів не знайдено.</TableCell>
           </TableRow>
         {/if}
       </TableBody>
@@ -186,11 +185,11 @@
 <Dialog bind:open={roleOpen}>
   <DialogContent class="max-w-sm">
     <DialogHeader>
-      <DialogTitle>Edit role — <span class="font-mono font-normal">{selected?.username}</span></DialogTitle>
+      <DialogTitle>Редагувати роль — <span class="font-mono font-normal">{selected?.username}</span></DialogTitle>
     </DialogHeader>
-    <Field label="Assigned role">
+    <Field label="Призначена роль">
       <Select type="single" bind:value={editRoleId}>
-        <SelectTrigger>{roles.find(r => String(r.id) === editRoleId)?.name ?? 'Select role…'}</SelectTrigger>
+        <SelectTrigger>{roles.find(r => String(r.id) === editRoleId)?.name ?? 'Оберіть роль…'}</SelectTrigger>
         <SelectContent>
           {#each roles as r}
             <SelectItem value={String(r.id)}>{r.name}</SelectItem>
@@ -199,8 +198,8 @@
       </Select>
     </Field>
     <DialogFooter class="mt-4">
-      <Button variant="outline" onclick={() => (roleOpen = false)}>Cancel</Button>
-      <Button onclick={saveRole} disabled={saving}>Save</Button>
+      <Button variant="outline" onclick={() => (roleOpen = false)}>Скасувати</Button>
+      <Button onclick={saveRole} disabled={saving}>Зберегти</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>
@@ -209,15 +208,15 @@
 <Dialog bind:open={pwOpen}>
   <DialogContent class="max-w-sm">
     <DialogHeader>
-      <DialogTitle>Reset password — <span class="font-mono font-normal">{selected?.username}</span></DialogTitle>
+      <DialogTitle>Скинути пароль — <span class="font-mono font-normal">{selected?.username}</span></DialogTitle>
     </DialogHeader>
-    <Field label="New password">
-      <Input type="password" bind:value={newPassword} placeholder="Enter new password" />
+    <Field label="Новий пароль">
+      <Input type="password" bind:value={newPassword} placeholder="Введіть новий пароль" />
     </Field>
     <DialogFooter class="mt-4">
-      <Button variant="outline" onclick={() => (pwOpen = false)}>Cancel</Button>
+      <Button variant="outline" onclick={() => (pwOpen = false)}>Скасувати</Button>
       <Button onclick={handleResetPw} disabled={saving || !newPassword}>
-        {saving ? 'Resetting…' : 'Reset password'}
+        {saving ? 'Скидання…' : 'Скинути пароль'}
       </Button>
     </DialogFooter>
   </DialogContent>
@@ -227,14 +226,14 @@
 <Dialog bind:open={deleteOpen}>
   <DialogContent class="max-w-sm">
     <DialogHeader>
-      <DialogTitle>Delete user?</DialogTitle>
+      <DialogTitle>Видалити користувача?</DialogTitle>
       <DialogDescription>
-        <span class="font-mono">{selected?.username}</span> will be permanently removed.
+        <span class="font-mono">{selected?.username}</span> буде назавжди видалено.
       </DialogDescription>
     </DialogHeader>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (deleteOpen = false)}>Cancel</Button>
-      <Button variant="destructive" onclick={handleDelete}>Delete</Button>
+      <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
+      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>
@@ -243,19 +242,19 @@
 <Dialog bind:open={createOpen}>
   <DialogContent class="max-w-sm">
     <DialogHeader>
-      <DialogTitle>New user</DialogTitle>
-      <DialogDescription>Create a new account. The user can change their password after logging in.</DialogDescription>
+      <DialogTitle>Новий користувач</DialogTitle>
+      <DialogDescription>Створіть новий акаунт. Після входу користувач зможе змінити пароль.</DialogDescription>
     </DialogHeader>
     <div class="space-y-3 py-2">
-      <Field label="Username">
+      <Field label="Логін">
         <Input bind:value={newUsername} placeholder="john.doe" class="font-mono" />
       </Field>
-      <Field label="Password">
-        <Input type="password" bind:value={newUserPass} placeholder="Temporary password" />
+      <Field label="Пароль">
+        <Input type="password" bind:value={newUserPass} placeholder="Тимчасовий пароль" />
       </Field>
-      <Field label="Role">
+      <Field label="Роль">
         <Select type="single" bind:value={newUserRoleId}>
-          <SelectTrigger>{roles.find(r => String(r.id) === newUserRoleId)?.name ?? 'Select role…'}</SelectTrigger>
+          <SelectTrigger>{roles.find(r => String(r.id) === newUserRoleId)?.name ?? 'Оберіть роль…'}</SelectTrigger>
           <SelectContent>
             {#each roles as r}
               <SelectItem value={String(r.id)}>{r.name}</SelectItem>
@@ -265,9 +264,9 @@
       </Field>
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (createOpen = false)}>Cancel</Button>
+      <Button variant="outline" onclick={() => (createOpen = false)}>Скасувати</Button>
       <Button onclick={handleCreateUser} disabled={saving || !newUsername || !newUserPass}>
-        {saving ? 'Creating…' : 'Create user'}
+        {saving ? 'Створення…' : 'Створити користувача'}
       </Button>
     </DialogFooter>
   </DialogContent>

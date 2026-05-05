@@ -34,7 +34,7 @@
     try {
       [roles, permissions] = await Promise.all([api.auth.roles(), api.auth.permissions()]);
     } catch {
-      toast.error('Failed to load roles');
+      toast.error('Помилка завантаження ролей');
     } finally {
       loading = false;
     }
@@ -70,11 +70,11 @@
     saving = true;
     try {
       await api.auth.assignPermissions(editRole.id, selectedPerms);
-      toast.success('Permissions updated');
+      toast.success('Дозволи оновлено');
       editRole = null;
       await load();
     } catch {
-      toast.error('Failed to save permissions');
+      toast.error('Помилка збереження дозволів');
     } finally {
       saving = false;
     }
@@ -85,12 +85,12 @@
     saving = true;
     try {
       await api.auth.createRole({ name: newName, description: newDesc });
-      toast.success('Role created');
+      toast.success('Роль створено');
       newRoleOpen = false;
       newName = ''; newDesc = '';
       await load();
     } catch {
-      toast.error('Failed to create role');
+      toast.error('Помилка створення ролі');
     } finally {
       saving = false;
     }
@@ -100,20 +100,20 @@
     if (!deleteTarget) return;
     try {
       await api.auth.deleteRole(deleteTarget.id);
-      toast.success('Role deleted');
+      toast.success('Роль видалено');
       deleteOpen = false;
       await load();
     } catch {
-      toast.error('Failed to delete role');
+      toast.error('Помилка видалення ролі');
     }
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Roles']} title="Roles">
+<TopBar crumbs={['OmniGate', 'Ролі']} title="Ролі">
   {#snippet actions()}
     <PermGuard permission="manage:roles">
       <Button size="sm" onclick={() => (newRoleOpen = true)}>
-        <Plus size={14} /> New role
+        <Plus size={14} /> Нова роль
       </Button>
     </PermGuard>
   {/snippet}
@@ -126,19 +126,19 @@
         <div class="flex items-start justify-between gap-4">
           <div>
             <div class="flex items-center gap-2">
-              <CardTitle class="text-[14px]">{role.name}</CardTitle>
+              <CardTitle class="text-sm">{role.name}</CardTitle>
               <Badge variant="outline" class="font-mono text-[10px]">id:{role.id}</Badge>
             </div>
             {#if role.description}
-              <p class="text-[12px] text-muted-foreground mt-0.5">{role.description}</p>
+              <p class="text-xs text-muted-foreground mt-0.5">{role.description}</p>
             {/if}
           </div>
           <PermGuard permission="manage:roles">
             <div class="flex gap-2 shrink-0">
-              <Button variant="outline" size="sm" onclick={() => openEdit(role)}>Edit permissions</Button>
+              <Button variant="outline" size="sm" onclick={() => openEdit(role)}>Редагувати дозволи</Button>
               <Button variant="ghost" size="sm" class="hover:text-destructive"
                 onclick={() => { deleteTarget = role; deleteOpen = true; }}>
-                Delete
+                Видалити
               </Button>
             </div>
           </PermGuard>
@@ -150,14 +150,14 @@
             <Badge variant="secondary" class="font-mono text-[11px]">{perm.id}</Badge>
           {/each}
           {#if !role.permissions?.length}
-            <span class="text-[12px] text-muted-foreground">No permissions assigned</span>
+            <span class="text-xs text-muted-foreground">Дозволів не призначено</span>
           {/if}
         </div>
       </CardContent>
     </Card>
   {/each}
   {#if !loading && roles.length === 0}
-    <div class="text-center text-muted-foreground py-12">No roles defined.</div>
+    <div class="text-center text-muted-foreground py-12">Ролей ще не визначено.</div>
   {/if}
 </main>
 
@@ -165,8 +165,8 @@
 <Dialog open={!!editRole} onOpenChange={(v) => { if (!v) editRole = null; }}>
   <DialogContent class="max-w-md">
     <DialogHeader>
-      <DialogTitle>Permissions — {editRole?.name}</DialogTitle>
-      <DialogDescription>Toggle which permissions this role grants.</DialogDescription>
+      <DialogTitle>Дозволи — {editRole?.name}</DialogTitle>
+      <DialogDescription>Оберіть дозволи, які надає ця роль.</DialogDescription>
     </DialogHeader>
     <div class="space-y-1 max-h-[420px] overflow-y-auto py-2">
       {#each [...permsByModule()] as [module, perms]}
@@ -175,11 +175,11 @@
           {@const active = selectedPerms.includes(perm.id)}
           <button
             onclick={() => togglePerm(perm.id)}
-            class="w-full flex items-center justify-between px-3 py-2 rounded-md border text-[13px] transition-colors
+            class="w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors
               {active ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
           >
             <div class="text-left">
-              <span class="font-mono font-medium text-[12px]">{perm.id}</span>
+              <span class="font-mono font-medium text-xs">{perm.id}</span>
               {#if perm.description}
                 <span class="block text-[11px] mt-0.5 opacity-70">{perm.description}</span>
               {/if}
@@ -190,9 +190,9 @@
       {/each}
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (editRole = null)}>Cancel</Button>
+      <Button variant="outline" onclick={() => (editRole = null)}>Скасувати</Button>
       <Button onclick={savePermissions} disabled={saving}>
-        {saving ? 'Saving…' : 'Save permissions'}
+        {saving ? 'Збереження…' : 'Зберегти дозволи'}
       </Button>
     </DialogFooter>
   </DialogContent>
@@ -201,15 +201,15 @@
 <!-- New role dialog -->
 <Dialog bind:open={newRoleOpen}>
   <DialogContent class="max-w-sm">
-    <DialogHeader><DialogTitle>Create role</DialogTitle></DialogHeader>
+    <DialogHeader><DialogTitle>Створити роль</DialogTitle></DialogHeader>
     <div class="space-y-4 py-2">
-      <Field label="Name"><Input bind:value={newName} placeholder="e.g. operator" /></Field>
-      <Field label="Description"><Input bind:value={newDesc} placeholder="Optional description" /></Field>
+      <Field label="Назва"><Input bind:value={newName} placeholder="напр. operator" /></Field>
+      <Field label="Опис"><Input bind:value={newDesc} placeholder="Необов'язковий опис" /></Field>
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (newRoleOpen = false)}>Cancel</Button>
+      <Button variant="outline" onclick={() => (newRoleOpen = false)}>Скасувати</Button>
       <Button onclick={createRole} disabled={saving || !newName.trim()}>
-        {saving ? 'Creating…' : 'Create'}
+        {saving ? 'Створення…' : 'Створити'}
       </Button>
     </DialogFooter>
   </DialogContent>
@@ -219,15 +219,15 @@
 <Dialog bind:open={deleteOpen}>
   <DialogContent class="max-w-sm">
     <DialogHeader>
-      <DialogTitle>Delete role?</DialogTitle>
+      <DialogTitle>Видалити роль?</DialogTitle>
       <DialogDescription>
-        Role <span class="font-mono">{deleteTarget?.name}</span> will be permanently removed.
-        Users with this role will need to be reassigned.
+        Роль <span class="font-mono">{deleteTarget?.name}</span> буде назавжди видалено.
+        Користувачі з цією роллю потребуватимуть переназначення.
       </DialogDescription>
     </DialogHeader>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (deleteOpen = false)}>Cancel</Button>
-      <Button variant="destructive" onclick={handleDelete}>Delete</Button>
+      <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
+      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>

@@ -23,13 +23,13 @@
   }
 
   const navItems: NavItem[] = [
-    { id: 'transactions', href: '/',                 label: 'Transactions', icon: LayoutGrid, section: 'Operations' },
-    { id: 'devices',      href: '/settings/devices', label: 'Devices',      icon: Cpu,        section: 'Operations' },
-    { id: 'keys',         href: '/settings/keys',    label: 'API Keys',     icon: KeySquare,  section: 'Operations',    permission: 'read:keys' },
-    { id: 'types',        href: '/settings/types',   label: 'Event Types',  icon: Layers,     section: 'Configuration' },
-    { id: 'gates',        href: '/settings/gates',   label: 'Gates',        icon: GitFork,    section: 'Configuration' },
-    { id: 'users',        href: '/settings/users',   label: 'Users',        icon: Users,      section: 'Access',        permission: 'manage:users' },
-    { id: 'roles',        href: '/settings/roles',   label: 'Roles',        icon: KeyRound,   section: 'Access',        permission: 'read:roles' },
+    { id: 'transactions', href: '/',                 label: 'Транзакції',   icon: LayoutGrid, section: 'Операції' },
+    { id: 'devices',      href: '/settings/devices', label: 'Пристрої',     icon: Cpu,        section: 'Операції' },
+    { id: 'keys',         href: '/settings/keys',    label: 'API Ключі',    icon: KeySquare,  section: 'Операції',      permission: 'read:keys' },
+    { id: 'types',        href: '/settings/types',   label: 'Типи подій',   icon: Layers,     section: 'Конфігурація' },
+    { id: 'gates',        href: '/settings/gates',   label: 'Шлагбауми',    icon: GitFork,    section: 'Конфігурація' },
+    { id: 'users',        href: '/settings/users',   label: 'Користувачі',  icon: Users,      section: 'Доступ',        permission: 'manage:users' },
+    { id: 'roles',        href: '/settings/roles',   label: 'Ролі',         icon: KeyRound,   section: 'Доступ',        permission: 'read:roles' },
   ];
 
   const isLoginPage = $derived($page.url.pathname === '/login');
@@ -38,7 +38,6 @@
     if (isLoginPage) return;
     if (!authStore.isAuthenticated) { goto('/login'); return; }
 
-    // Refresh permissions on every app boot
     api.auth.validate().then((data) => {
       authStore.setPermissions(data.permissions);
     }).catch(() => {
@@ -79,7 +78,6 @@
     return 'transactions';
   });
 
-  // Group nav items by section for separator rendering
   const sections = $derived(() => {
     const seen = new Set<string>();
     return navItems.map(item => {
@@ -94,7 +92,7 @@
   {#if !isLoginPage}
   <aside class="w-[224px] shrink-0 bg-card border-r border-border h-screen sticky top-0 flex flex-col overflow-hidden">
     <!-- Brand -->
-    <div class="h-[48px] flex items-center gap-2 px-4 border-b border-border shrink-0">
+    <div class="h-[52px] flex items-center gap-2 px-4 border-b border-border shrink-0">
       <div class="w-[22px] h-[22px] rounded-md bg-primary flex items-center justify-center shrink-0">
         <svg viewBox="0 0 40 40" width="14" height="14">
           <rect x="4" y="6" width="32" height="28" rx="4" fill="none" stroke="white" stroke-width="3"/>
@@ -118,7 +116,7 @@
           {@const active = activeId() === item.id}
           <a
             href={item.href}
-            class="flex items-center gap-2.5 h-8 px-2 rounded-md text-[13px] font-medium transition-colors duration-100
+            class="flex items-center gap-2.5 h-9 px-2 rounded-md text-sm font-medium transition-colors duration-100
               {active
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
@@ -134,14 +132,14 @@
     <div class="p-2 border-t border-border shrink-0">
       <a
         href="/profile"
-        class="flex items-center gap-2 px-2 h-9 rounded-md transition-colors hover:bg-muted group"
+        class="flex items-center gap-2 px-2 h-10 rounded-md transition-colors hover:bg-muted group"
       >
-        <div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] font-semibold text-primary-foreground shrink-0">
+        <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-[11px] font-semibold text-primary-foreground shrink-0">
           {initials()}
         </div>
         <div class="leading-tight min-w-0 flex-1">
-          <div class="text-[12px] font-medium truncate">{authStore.username ?? '—'}</div>
-          <div class="text-[11px] text-muted-foreground capitalize">{authStore.role ?? ''}</div>
+          <div class="text-sm font-medium truncate">{authStore.username ?? '—'}</div>
+          <div class="text-xs text-muted-foreground capitalize">{authStore.role ?? ''}</div>
         </div>
         <UserCircle size={14} class="text-muted-foreground group-hover:text-foreground shrink-0" />
       </a>
@@ -151,7 +149,7 @@
         onclick={handleLogout}
         class="w-full justify-start gap-2 text-muted-foreground hover:text-destructive mt-0.5 px-2"
       >
-        <LogOut size={14} /> Sign out
+        <LogOut size={14} /> Вийти
       </Button>
     </div>
   </aside>

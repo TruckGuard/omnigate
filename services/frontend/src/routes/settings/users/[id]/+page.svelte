@@ -64,7 +64,7 @@
           fNotes = profile.notes;
         }
       } catch {
-        toast.error('User not found');
+        toast.error('Користувача не знайдено');
         goto('/settings/users');
       } finally {
         loading = false;
@@ -78,9 +78,9 @@
     try {
       await api.auth.updateUserRole(user.id, Number(editRoleId));
       user = { ...user, role_id: Number(editRoleId), role: roles.find(r => r.id === Number(editRoleId)) };
-      toast.success('Role updated');
+      toast.success('Роль оновлено');
     } catch {
-      toast.error('Failed to update role');
+      toast.error('Помилка оновлення ролі');
     } finally {
       savingRole = false;
     }
@@ -96,41 +96,41 @@
       } else {
         profile = await api.profiles.create({ auth_id: user.id, ...data });
       }
-      toast.success('Profile saved');
+      toast.success('Профіль збережено');
     } catch {
-      toast.error('Failed to save profile');
+      toast.error('Помилка збереження профілю');
     } finally {
       savingProfile = false;
     }
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Users', user?.username ?? '…']}>
+<TopBar crumbs={['OmniGate', 'Користувачі', user?.username ?? '…']}>
   {#snippet actions()}
     <Button variant="outline" size="sm" onclick={() => goto('/settings/users')}>
-      <ChevronLeft size={14} /> Back to users
+      <ChevronLeft size={14} /> Назад до користувачів
     </Button>
   {/snippet}
 </TopBar>
 
 {#if loading}
-  <div class="flex-1 flex items-center justify-center text-muted-foreground">Loading…</div>
+  <div class="flex-1 flex items-center justify-center text-muted-foreground">Завантаження…</div>
 {:else if user}
   <main class="flex-1 p-6 max-w-[800px] space-y-5">
     <!-- User header -->
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-[14px] font-semibold text-primary-foreground">
+      <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-semibold text-primary-foreground">
         {user.username.slice(0, 2).toUpperCase()}
       </div>
       <div>
-        <div class="font-semibold text-[16px]">{user.username}</div>
+        <div class="font-semibold text-base">{user.username}</div>
         <div class="flex items-center gap-2 mt-0.5">
           {#if user.role}
             <Badge variant="secondary">{user.role.name}</Badge>
           {/if}
           <span class="text-[11px] text-muted-foreground">
-            Joined {fmtDateTime(user.created_at)}
-            {#if user.last_login} · Last login {fmtDateTime(user.last_login)}{/if}
+            Зареєстровано {fmtDateTime(user.created_at)}
+            {#if user.last_login} · Останній вхід {fmtDateTime(user.last_login)}{/if}
           </span>
         </div>
       </div>
@@ -141,15 +141,15 @@
     <div class="grid grid-cols-2 gap-6">
       <!-- Account -->
       <Card>
-        <CardHeader><CardTitle>Account</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Акаунт</CardTitle></CardHeader>
         <CardContent class="space-y-4">
-          <Field label="Username">
+          <Field label="Логін">
             <Input value={user.username} disabled />
           </Field>
-          <Field label="Role">
+          <Field label="Роль">
             <Select type="single" bind:value={editRoleId}>
               <SelectTrigger>
-                {roles.find(r => String(r.id) === editRoleId)?.name ?? 'Select role…'}
+                {roles.find(r => String(r.id) === editRoleId)?.name ?? 'Оберіть роль…'}
               </SelectTrigger>
               <SelectContent>
                 {#each roles as r}
@@ -160,7 +160,7 @@
           </Field>
           <div class="flex justify-end">
             <Button size="sm" onclick={saveRole} disabled={savingRole}>
-              {savingRole ? 'Saving…' : 'Save account'}
+              {savingRole ? 'Збереження…' : 'Зберегти акаунт'}
             </Button>
           </div>
         </CardContent>
@@ -170,47 +170,47 @@
       <Card>
         <CardHeader>
           <div class="flex items-center justify-between">
-            <CardTitle>Profile</CardTitle>
+            <CardTitle>Профіль</CardTitle>
             {#if !profile}
-              <Badge variant="outline" class="text-[10px]">Not created</Badge>
+              <Badge variant="outline" class="text-[10px]">Не створено</Badge>
             {/if}
           </div>
         </CardHeader>
         <CardContent class="space-y-4">
           <div class="grid grid-cols-2 gap-3">
-            <Field label="First name">
-              <Input bind:value={fFirst} placeholder="John" />
+            <Field label="Ім'я">
+              <Input bind:value={fFirst} placeholder="Іван" />
             </Field>
-            <Field label="Last name">
-              <Input bind:value={fLast} placeholder="Smith" />
+            <Field label="Прізвище">
+              <Input bind:value={fLast} placeholder="Петренко" />
             </Field>
           </div>
-          <Field label="Phone">
-            <Input bind:value={fPhone} placeholder="+1 555 000 0000" />
+          <Field label="Телефон">
+            <Input bind:value={fPhone} placeholder="+380991234567" />
           </Field>
-          <Field label="Assigned gate">
+          <Field label="Шлагбаум">
             <Select type="single" bind:value={fGate}>
               <SelectTrigger>
                 {#if fGate}
                   <GateBadge gateId={fGate} />
                 {:else}
-                  No gate assigned
+                  Не призначено
                 {/if}
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="">Не обрано</SelectItem>
                 {#each gates as g}
                   <SelectItem value={g.gate_id}>{g.name} ({g.gate_id})</SelectItem>
                 {/each}
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Notes">
-            <Textarea bind:value={fNotes} rows={2} placeholder="Optional notes…" />
+          <Field label="Нотатки">
+            <Textarea bind:value={fNotes} rows={2} placeholder="Необов'язкові нотатки…" />
           </Field>
           <div class="flex justify-end">
             <Button size="sm" onclick={saveProfile} disabled={savingProfile}>
-              {savingProfile ? 'Saving…' : profile ? 'Save profile' : 'Create profile'}
+              {savingProfile ? 'Збереження…' : profile ? 'Зберегти профіль' : 'Створити профіль'}
             </Button>
           </div>
         </CardContent>

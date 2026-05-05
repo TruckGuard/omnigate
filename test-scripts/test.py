@@ -5,6 +5,20 @@ OmniGate integration test.
 Setup is idempotent — API keys and source IDs are cached in Valkey,
 so re-runs reuse existing devices and configs.
 
+Device layout:
+  Device 1 – Camera   – simple ingest, no trigger
+  Device 2 – Scale    – ingest triggers puller → targets Device 3
+  Device 3 – Camera   – puller pull target; owns trigger_url in its config
+
+Puller flow:
+  Adapter processes Device 2 event
+    → publishes {trigger_source_id: dev3_sid, ...} to events:puller stream
+  Puller reads trigger_source_id
+    → GET /api/v1/configs/devices/{trigger_source_id} on Core
+    → reads trigger_url from Device 3 config
+    → fetches trigger_url
+    → POSTs result to ingestor as Device 3
+
 Usage:
     ADMIN_DEFAULT_PASSWORD=secret python test.py          # run / reuse env
     ADMIN_DEFAULT_PASSWORD=secret python test.py --reset  # wipe cache, recreate
@@ -129,26 +143,35 @@ def get_or_create_api_key(rv, hdrs, sid_key, api_key_cache, name, perms):
     return sid, key
 
 
-def get_or_create_device_config(hdrs, source_id, event_type_id, **kw):
-    r = requests.get(
-        f"{BASE_URL}/api/v1/configs/devices/{source_id}", headers=hdrs, timeout=10
-    )
-    if r.status_code == 200:
-        skip(f"Device config  (source_id={source_id})")
-        return
-
+def ensure_device_config(hdrs, source_id, event_type_id, **kw):
+    """Create or update a device config to match the expected settings."""
     body = {
         "source_id":     source_id,
         "event_type_id": event_type_id,
         "gate_id":       GATE_ID,
         **kw,
     }
-    r = requests.post(
+    r = requests.get(
+        f"{BASE_URL}/api/v1/configs/devices/{source_id}", headers=hdrs, timeout=10
+    )
+    if r.status_code == 200:
+        cfg_id = r.json().get("id")
+        ur = requests.put(
+            f"{BASE_URL}/api/v1/configs/devices/{cfg_id}", headers=hdrs, json=body, timeout=10
+        )
+        if ur.status_code not in (200, 204):
+            fail(f"Cannot update device config (source_id={source_id}): {ur.text}")
+        skip(f"Device config ensured  (source_id={source_id}, id={cfg_id})")
+        return cfg_id
+
+    cr = requests.post(
         f"{BASE_URL}/api/v1/configs/devices", headers=hdrs, json=body, timeout=10
     )
-    if r.status_code not in (200, 201):
-        fail(f"Cannot create device config (source_id={source_id}): {r.text}")
-    ok(f"Created device config  (source_id={source_id})")
+    if cr.status_code not in (200, 201):
+        fail(f"Cannot create device config (source_id={source_id}): {cr.text}")
+    cfg_id = cr.json().get("id")
+    ok(f"Created device config  (source_id={source_id}, id={cfg_id})")
+    return cfg_id
 
 
 # ─── Environment setup ────────────────────────────────────────────────────────
@@ -156,8 +179,9 @@ def setup(rv, hdrs):
     """
     Devices:
       1  – Camera  – simple ingest, no trigger
-      2  – Scale   – ingest triggers puller → assumes Device 3
-      3  – Camera  – puller target (no direct ingest in tests)
+      2  – Scale   – ingest triggers puller → targets Device 3 via trigger_source_id
+      3  – Camera  – puller pull target; owns trigger_url in its own config
+                     Puller resolves trigger_url by GETting Device 3's config from Core.
     """
     step("Event Types")
     cam_type_id = get_or_create_event_type(
@@ -165,9 +189,11 @@ def setup(rv, hdrs):
         code="camera_recognition",
         name="Camera Recognition",
         fields={
-            "plate":      {"type": "string", "required": True},
-            "confidence": {"type": "float",  "required": False},
-            "direction":  {"type": "string", "required": False},
+            "plate":        {"type": "string", "required": True},
+            "confidence":   {"type": "float",  "required": False},
+            "direction":    {"type": "string", "required": False},
+            "region":       {"type": "string", "required": False},
+            "vehicle_type": {"type": "string", "required": False},
         },
         cache_key=K["type_camera"],
     )
@@ -198,37 +224,41 @@ def setup(rv, hdrs):
 
     step("Device Configs")
     # Device 1 – camera, plain ingest
-    get_or_create_device_config(
+    ensure_device_config(
         hdrs, dev1_sid, cam_type_id,
         data_type="json",
         data_mapping={
-            "plate":      "$.plate",
-            "confidence": "$.confidence",
-            "direction":  "$.direction",
+            "plate":        "$.Event.Data.Content.VideoResult.plate.text",
+            "confidence":   "$.Event.Data.Content.VideoResult.confidence",
+            "direction":    "$.Event.Metadata.Traffic.dir",
+            "region":       "$.Event.Data.Content.VideoResult.plate.region_code",
+            "vehicle_type": "$.Event.Data.Content.VideoResult.vehicle.type",
         },
         trigger_enabled=False,
     )
-    # Device 2 – scale, triggers puller to assume Device 3
-    get_or_create_device_config(
+    # Device 2 – scale; trigger_enabled=True, trigger_source_id points to Device 3.
+    # Does NOT own trigger_url — the URL lives on Device 3's config.
+    dev2_cfg_id = ensure_device_config(
         hdrs, dev2_sid, scale_type_id,
         data_type="json",
-        data_mapping={"weight_kg": "$.weight_kg"},
+        data_mapping={"weight_kg": "$.Payload.Measurements.Weight.Value"},
         trigger_enabled=True,
-        trigger_url=TRIGGER_URL,
         trigger_source_id=dev3_sid,
     )
-    # Device 3 – camera, receives pulled data
-    get_or_create_device_config(
+    # Device 3 – camera, puller pull target.
+    # Owns trigger_url: Puller fetches this URL when triggered by Device 2.
+    ensure_device_config(
         hdrs, dev3_sid, cam_type_id,
         data_type="json",
         data_mapping={
-            "plate":      "$.plate",
-            "confidence": "$.confidence",
+            "plate":      "$.Event.Data.Content.VideoResult.plate.text",
+            "confidence": "$.Event.Data.Content.VideoResult.confidence",
         },
         trigger_enabled=False,
+        trigger_url=TRIGGER_URL,
     )
 
-    return dev1_sid, dev1_key, dev2_sid, dev2_key, dev3_sid
+    return dev1_sid, dev1_key, dev2_sid, dev2_key, dev2_cfg_id, dev3_sid
 
 
 # ─── Core event helpers ───────────────────────────────────────────────────────
@@ -269,10 +299,30 @@ def test_camera_ingest(hdrs, dev1_sid, dev1_key):
         f"{BASE_URL}/ingest/event",
         headers={"X-API-Key": dev1_key},
         data={"payload": json.dumps({
-            "event_type": "camera_recognition",
-            "plate":      "AA1234BB",
-            "confidence": 0.98,
-            "direction":  "in",
+            "Event": {
+                "Metadata": {
+                    "Source": "CAM-NORTH-01",
+                    "Session": "abc-123-xyz",
+                    "Traffic": {"dir": "in", "lane": 2}
+                },
+                "Data": {
+                    "Content": {
+                        "VideoResult": {
+                            "plate": {
+                                "text": "AA1234BB",
+                                "region_code": "UA",
+                                "char_rects": [[1,2], [3,4]]
+                            },
+                            "confidence": 0.992,
+                            "vehicle": {
+                                "type": "truck",
+                                "color": "white"
+                            }
+                        }
+                    },
+                    "Diagnostics": {"temp": 45.2, "voltage": 12.1}
+                }
+            }
         })},
         files={"image": ("plate.jpg", FAKE_JPEG, "image/jpeg")},
         timeout=10,
@@ -286,9 +336,41 @@ def test_camera_ingest(hdrs, dev1_sid, dev1_key):
     wait_for_new_event(hdrs, dev1_sid, before, "Device 1 camera")
 
 
-# ─── Test 2.2 – Scale ingest + puller trigger (Device 2 → Device 3) ──────────
+# ─── Test 2.2 – Puller config resolution ─────────────────────────────────────
+def test_puller_config_resolution(hdrs, dev3_sid):
+    """
+    Verify Device 3's config has trigger_url set in Core.
+    This is the URL the Puller fetches when triggered.
+    """
+    step("Test 2.2  ·  Puller Config Resolution  (Device 3 owns trigger_url)")
+
+    r = requests.get(
+        f"{BASE_URL}/api/v1/configs/devices/{dev3_sid}", headers=hdrs, timeout=10
+    )
+    if r.status_code != 200:
+        fail(f"Cannot fetch Device 3 config ({r.status_code}): {r.text}")
+
+    cfg = r.json()
+    trigger_url = cfg.get("trigger_url")
+    if not trigger_url:
+        fail(f"Device 3 config is missing trigger_url (got: {cfg})")
+
+    ok(f"Device 3 config has trigger_url='{trigger_url}'")
+    info("Puller will resolve this URL at runtime via GET /api/v1/configs/devices/{trigger_source_id}")
+
+
+# ─── Test 2.3 – Scale ingest + automatic puller trigger ───────────────────────
 def test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid):
-    step("Test 2.2  ·  Scale Ingest + Puller Trigger  (Device 2 → Device 3)")
+    """
+    Flow:
+      1. Ingest scale event via Device 2
+      2. Adapter processes event, sees trigger_enabled + trigger_source_id=dev3_sid
+      3. Adapter publishes {trigger_source_id: dev3_sid, ...} to events:puller stream
+      4. Puller reads trigger_source_id, GETs Device 3's config from Core
+      5. Puller fetches trigger_url from Device 3's config
+      6. Puller ingests result attributed to Device 3
+    """
+    step("Test 2.3  ·  Scale Ingest + Automatic Puller Trigger  (Device 2 → Device 3)")
 
     before_dev2 = count_events(hdrs, dev2_sid)
     before_dev3 = count_events(hdrs, dev3_sid)
@@ -297,8 +379,14 @@ def test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid):
         f"{BASE_URL}/ingest/event",
         headers={"X-API-Key": dev2_key},
         data={"payload": json.dumps({
-            "event_type": "scale_weight",
-            "weight_kg":  25400.0,
+            "Header": {"Version": "2.1", "Device": "SCALE-04"},
+            "Payload": {
+                "Measurements": {
+                    "Weight": {"Value": 25400.0, "Unit": "kg"},
+                    "Stability": True
+                },
+                "Raw": [25399, 25401, 25400]
+            }
         })},
         timeout=10,
     )
@@ -308,11 +396,37 @@ def test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid):
     resp_data = r.json()
     ok(f"Ingestor accepted  (transaction_id={resp_data.get('transaction_id')})")
 
-    # Adapter processes Device 2 event → publishes to events:puller
+    # Adapter processes Device 2 event → publishes trigger_source_id to events:puller
     wait_for_new_event(hdrs, dev2_sid, before_dev2, "Device 2 scale", timeout=20)
 
-    # Puller picks up → fetches TRIGGER_URL → ingests as Device 3
-    wait_for_new_event(hdrs, dev3_sid, before_dev3, "Device 3 camera (puller)", timeout=30)
+    # Puller: resolves trigger_url from Device 3 config → fetches → ingests as Device 3
+    wait_for_new_event(hdrs, dev3_sid, before_dev3, "Device 3 camera (puller auto)", timeout=35)
+
+
+# ─── Test 2.4 – Manual trigger via Core API ──────────────────────────────────
+def test_manual_trigger(hdrs, dev2_cfg_id, dev3_sid):
+    """
+    Trigger the puller manually via Core's POST /api/v1/configs/devices/:id/trigger.
+    Core reads Device 2's config, publishes trigger_source_id=dev3_sid to events:puller.
+    Puller then resolves Device 3's trigger_url and ingests the result.
+    """
+    step("Test 2.4  ·  Manual Trigger  (POST /configs/devices/{id}/trigger)")
+
+    before_dev3 = count_events(hdrs, dev3_sid)
+
+    r = requests.post(
+        f"{BASE_URL}/api/v1/configs/devices/{dev2_cfg_id}/trigger",
+        headers=hdrs,
+        timeout=10,
+    )
+    if r.status_code not in (200, 202):
+        fail(f"Manual trigger failed ({r.status_code}): {r.text}")
+
+    ok(f"Manual trigger accepted  (response={r.json()})")
+    info("Core published trigger_source_id to events:puller stream")
+
+    # Puller resolves Device 3's trigger_url and ingests
+    wait_for_new_event(hdrs, dev3_sid, before_dev3, "Device 3 camera (manual trigger)", timeout=35)
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -349,10 +463,12 @@ def main():
     ok("Logged in as admin")
 
     step("Environment Setup")
-    dev1_sid, dev1_key, dev2_sid, dev2_key, dev3_sid = setup(rv, hdrs)
+    dev1_sid, dev1_key, dev2_sid, dev2_key, dev2_cfg_id, dev3_sid = setup(rv, hdrs)
 
     test_camera_ingest(hdrs, dev1_sid, dev1_key)
+    test_puller_config_resolution(hdrs, dev3_sid)
     test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid)
+    test_manual_trigger(hdrs, dev2_cfg_id, dev3_sid)
 
     print(f"\n{BOLD}{'=' * 52}{RESET}")
     print(f"{BOLD}{GREEN}  All tests passed ✓{RESET}")

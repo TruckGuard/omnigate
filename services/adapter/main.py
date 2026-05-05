@@ -22,7 +22,9 @@ from opentelemetry._logs import set_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 import logging
+import json
 
 
 def init_otel(service_name: str) -> None:
@@ -102,7 +104,21 @@ def main():
                     raw = data.get("data", "")
 
                     try:
-                        processor.process(raw)
+                        # Extract Trace Context from stream message
+                        carrier = {}
+                        try:
+                            msg_json = json.loads(raw)
+                            if "trace_context" in msg_json:
+                                carrier = {"traceparent": msg_json["trace_context"]}
+                        except Exception:
+                            pass
+                        
+                        extracted_context = TraceContextTextMapPropagator().extract(carrier=carrier)
+                        
+                        tracer = trace.get_tracer(__name__)
+                        with tracer.start_as_current_span("adapter-process", context=extracted_context):
+                            processor.process(raw)
+                        
                         redis.xack(cfg.STREAM_RAW, "adapter-workers", msg_id)
                         retry_counts.pop(msg_id, None)
                     except Exception as e:

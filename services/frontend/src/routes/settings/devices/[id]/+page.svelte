@@ -21,7 +21,7 @@
   import MappingEditor from '$lib/components/MappingEditor.svelte';
   import { api } from '$lib/api.js';
   import type { DeviceConfig, Event, EventType, Gate, APIKey } from '$lib/types.js';
-  import { ChevronLeft, Plus } from 'lucide-svelte';
+  import { ChevronLeft, Plus, Zap } from 'lucide-svelte';
 
   const deviceId = $derived($page.params.id ?? '');
   const isNew    = $derived(deviceId === 'new');
@@ -32,6 +32,7 @@
   let allConfigs = $state<DeviceConfig[]>([]);
   let loading    = $state(get(page).params.id !== 'new');
   let saving     = $state(false);
+  let triggering = $state(false);
   let confirmDelete = $state(false);
 
   // Form state
@@ -44,7 +45,6 @@
   let triggerUrl      = $state('');
   let triggerSourceId = $state('');
 
-  // Latest event for mapping reference
   let latestEvent = $state<Event | null>(null);
 
   // New key inline form
@@ -53,7 +53,7 @@
   let newKeyGateId = $state('');
   let savingKey    = $state(false);
 
-  // New gate inline form (shared inputs, separate open flags per context)
+  // New gate inline form
   let creatingGate    = $state(false);
   let creatingKeyGate = $state(false);
   let newGateId       = $state('');
@@ -62,7 +62,6 @@
 
   const selectedType = $derived(eventTypes.find(t => t.id === eventTypeId));
 
-  // Inherit gate_id from the selected API key when on a new device
   $effect(() => {
     if (!isNew) return;
     const key = apiKeys.find(k => String(k.id) === sourceId);
@@ -88,12 +87,11 @@
           triggerEnabled  = cfg.trigger_enabled;
           triggerUrl      = cfg.trigger_url ?? '';
           triggerSourceId = cfg.trigger_source_id ?? '';
-          // Load latest event as mapping reference
           api.events.latestForSource(cfg.source_id)
             .then(e => { latestEvent = e; })
             .catch(() => {});
         } catch {
-          toast.error('Device not found');
+          toast.error('Пристрій не знайдено');
           goto('/settings/devices');
         } finally {
           loading = false;
@@ -117,9 +115,9 @@
       creatingKey = false;
       newKeyName = '';
       newKeyGateId = '';
-      toast.success(`Key #${res.id} created — key shown once: ${res.api_key}`);
+      toast.success(`Ключ #${res.id} створено — збережіть: ${res.api_key}`);
     } catch {
-      toast.error('Failed to create key');
+      toast.error('Помилка створення ключа');
     } finally {
       savingKey = false;
     }
@@ -137,15 +135,14 @@
       creatingKeyGate = false;
       newGateId = '';
       newGateName = '';
-      toast.success('Gate created');
+      toast.success('Шлагбаум створено');
     } catch {
-      toast.error('Failed to create gate');
+      toast.error('Помилка створення шлагбауму');
     } finally {
       savingGate = false;
     }
   }
 
-  // Trigger relationship helpers
   const triggeredByConfigs = $derived(
     allConfigs.filter(c => c.trigger_source_id === sourceId && c.source_id !== sourceId)
   );
@@ -164,18 +161,21 @@
           trigger_url: triggerEnabled ? triggerUrl || null : null,
           trigger_source_id: triggerEnabled && triggerSourceId ? triggerSourceId : null,
         });
-        toast.success('Device created');
+        toast.success('Пристрій створено');
       } else {
         await api.configs.update(deviceId, {
+          event_type_id: eventTypeId,
+          gate_id: gateId,
+          data_type: dataType,
           data_mapping: mappingObj, trigger_enabled: triggerEnabled,
           trigger_url: triggerEnabled ? triggerUrl || null : null,
           trigger_source_id: triggerEnabled && triggerSourceId ? triggerSourceId : null,
         });
-        toast.success('Device saved');
+        toast.success('Пристрій збережено');
       }
       goto('/settings/devices');
     } catch {
-      toast.error('Save failed');
+      toast.error('Помилка збереження');
     } finally {
       saving = false;
     }
@@ -184,56 +184,68 @@
   async function handleDelete() {
     try {
       await api.configs.delete(deviceId);
-      toast.success('Device deleted');
+      toast.success('Пристрій видалено');
       goto('/settings/devices');
     } catch {
-      toast.error('Delete failed');
+      toast.error('Помилка видалення');
+    }
+  }
+
+  async function handleManualTrigger() {
+    triggering = true;
+    try {
+      await api.configs.trigger(deviceId);
+      toast.success('Тригер запущено вручну');
+    } catch {
+      toast.error('Помилка запуску тригера');
+    } finally {
+      triggering = false;
     }
   }
 </script>
 
 <TopBar
-  crumbs={['OmniGate', 'Devices', isNew ? 'New device' : sourceId]}
-  title={isNew ? 'New device' : 'Edit device'}
+  crumbs={['OmniGate', 'Пристрої', isNew ? 'Новий пристрій' : sourceId]}
+  title={isNew ? 'Новий пристрій' : 'Редагувати пристрій'}
 >
   {#snippet actions()}
     {#if !isNew}
       <PermGuard permission="manage:keys">
-        <Button variant="destructive" size="sm" onclick={() => (confirmDelete = true)}>Delete</Button>
+        <Button variant="destructive" size="sm" onclick={() => (confirmDelete = true)}>Видалити</Button>
       </PermGuard>
     {/if}
-    <Button variant="outline" size="sm" onclick={() => goto('/settings/devices')}>Cancel</Button>
+    <Button variant="outline" size="sm" onclick={() => goto('/settings/devices')}>Скасувати</Button>
     <PermGuard permission="manage:keys">
       <Button size="sm" onclick={handleSave} disabled={saving}>
-        {saving ? 'Saving…' : 'Save'}
+        {saving ? 'Збереження…' : 'Зберегти'}
       </Button>
     </PermGuard>
   {/snippet}
 </TopBar>
 
 {#if loading}
-  <div class="flex-1 flex items-center justify-center text-muted-foreground">Loading…</div>
+  <div class="flex-1 flex items-center justify-center text-muted-foreground">Завантаження…</div>
 {:else}
   <main class="flex-1 p-6 max-w-[920px] space-y-5">
     <Button variant="ghost" size="sm" onclick={() => goto('/settings/devices')}>
-      <ChevronLeft size={14} /> Devices
+      <ChevronLeft size={14} /> Пристрої
     </Button>
 
     <!-- Identity -->
     <Card>
-      <CardHeader><CardTitle>Identity</CardTitle></CardHeader>
+      <CardHeader><CardTitle>Ідентифікація</CardTitle></CardHeader>
       <CardContent class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <!-- Source ID = API Key -->
-          <Field label="Source (API Key)" hint="The API key whose ID identifies this device.">
+          <Field label="Джерело (API Ключ)" hint="API ключ, ID якого ідентифікує цей пристрій.">
             {#if isNew}
               <div class="space-y-2">
                 <Select type="single" bind:value={sourceId}>
                   <SelectTrigger>
                     {#if sourceId}
-                      {apiKeys.find(k => String(k.id) === sourceId)?.owner_name ?? `Key #${sourceId}`}
+                      {apiKeys.find(k => String(k.id) === sourceId)?.owner_name ?? `Ключ #${sourceId}`}
                     {:else}
-                      Select API key…
+                      Оберіть API ключ…
                     {/if}
                   </SelectTrigger>
                   <SelectContent>
@@ -246,18 +258,18 @@
                 </Select>
                 {#if !creatingKey}
                   <Button variant="outline" size="sm" onclick={() => (creatingKey = true)}>
-                    <Plus size={12} /> Create new key
+                    <Plus size={12} /> Створити новий ключ
                   </Button>
                 {:else}
                   <div class="rounded-md border border-border p-3 space-y-2 bg-muted/30">
-                    <p class="text-[12px] font-medium">New API key</p>
-                    <Input placeholder="Owner / device name" bind:value={newKeyName} />
+                    <p class="text-sm font-medium">Новий API ключ</p>
+                    <Input placeholder="Власник / назва пристрою" bind:value={newKeyName} />
                     <Select type="single" bind:value={newKeyGateId}>
                       <SelectTrigger>
-                        {gates.find(g => g.gate_id === newKeyGateId)?.name ?? (newKeyGateId || 'Select gate (optional)…')}
+                        {gates.find(g => g.gate_id === newKeyGateId)?.name ?? (newKeyGateId || 'Оберіть шлагбаум (необов\'язково)…')}
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="">Немає</SelectItem>
                         {#each gates as g}
                           <SelectItem value={g.gate_id}>{g.name} ({g.gate_id})</SelectItem>
                         {/each}
@@ -265,26 +277,26 @@
                     </Select>
                     {#if !creatingKeyGate}
                       <Button variant="outline" size="sm" onclick={() => (creatingKeyGate = true)}>
-                        <Plus size={12} /> Create new gate
+                        <Plus size={12} /> Створити новий шлагбаум
                       </Button>
                     {:else}
                       <div class="rounded-md border border-border p-3 space-y-2 bg-background">
-                        <p class="text-[12px] font-medium">New gate</p>
+                        <p class="text-sm font-medium">Новий шлагбаум</p>
                         <Input placeholder="gate-north (ID)" bind:value={newGateId} class="font-mono" />
-                        <Input placeholder="North Gate (display name)" bind:value={newGateName} />
+                        <Input placeholder="Північна брама (назва)" bind:value={newGateName} />
                         <div class="flex gap-2">
                           <Button size="sm" onclick={() => createNewGate(id => newKeyGateId = id)} disabled={savingGate || !newGateId || !newGateName}>
-                            {savingGate ? 'Creating…' : 'Create'}
+                            {savingGate ? 'Створення…' : 'Створити'}
                           </Button>
-                          <Button variant="ghost" size="sm" onclick={() => (creatingKeyGate = false)}>Cancel</Button>
+                          <Button variant="ghost" size="sm" onclick={() => (creatingKeyGate = false)}>Скасувати</Button>
                         </div>
                       </div>
                     {/if}
                     <div class="flex gap-2 pt-1">
                       <Button size="sm" onclick={createNewKey} disabled={savingKey || !newKeyName}>
-                        {savingKey ? 'Creating…' : 'Create key'}
+                        {savingKey ? 'Створення…' : 'Створити ключ'}
                       </Button>
-                      <Button variant="ghost" size="sm" onclick={() => { creatingKey = false; creatingKeyGate = false; }}>Cancel</Button>
+                      <Button variant="ghost" size="sm" onclick={() => { creatingKey = false; creatingKeyGate = false; }}>Скасувати</Button>
                     </div>
                   </div>
                 {/if}
@@ -294,11 +306,11 @@
             {/if}
           </Field>
 
-          <Field label="Gate" hint="Which gate this device serves.">
+          <Field label="Шлагбаум" hint="Шлагбаум, якому слугує цей пристрій.">
             <div class="space-y-2">
               <Select type="single" bind:value={gateId}>
                 <SelectTrigger>
-                  {gates.find(g => g.gate_id === gateId)?.name ?? (gateId || 'Select gate…')}
+                  {gates.find(g => g.gate_id === gateId)?.name ?? (gateId || 'Оберіть шлагбаум…')}
                 </SelectTrigger>
                 <SelectContent>
                   {#each gates as g}
@@ -308,18 +320,18 @@
               </Select>
               {#if !creatingGate}
                 <Button variant="outline" size="sm" onclick={() => (creatingGate = true)}>
-                  <Plus size={12} /> Create new gate
+                  <Plus size={12} /> Створити новий шлагбаум
                 </Button>
               {:else}
                 <div class="rounded-md border border-border p-3 space-y-2 bg-muted/30">
-                  <p class="text-[12px] font-medium">New gate</p>
+                  <p class="text-sm font-medium">Новий шлагбаум</p>
                   <Input placeholder="gate-north (ID)" bind:value={newGateId} class="font-mono" />
-                  <Input placeholder="North Gate (display name)" bind:value={newGateName} />
+                  <Input placeholder="Північна брама (назва)" bind:value={newGateName} />
                   <div class="flex gap-2">
                     <Button size="sm" onclick={() => createNewGate(id => gateId = id)} disabled={savingGate || !newGateId || !newGateName}>
-                      {savingGate ? 'Creating…' : 'Create'}
+                      {savingGate ? 'Створення…' : 'Створити'}
                     </Button>
-                    <Button variant="ghost" size="sm" onclick={() => (creatingGate = false)}>Cancel</Button>
+                    <Button variant="ghost" size="sm" onclick={() => (creatingGate = false)}>Скасувати</Button>
                   </div>
                 </div>
               {/if}
@@ -333,15 +345,15 @@
     <Card>
       <CardHeader>
         <div class="flex items-baseline justify-between">
-          <CardTitle>Payload</CardTitle>
-          <span class="text-[12px] text-muted-foreground">JSONPath · evaluated by Adapter</span>
+          <CardTitle>Корисне навантаження</CardTitle>
+          <span class="text-sm text-muted-foreground">JSONPath · обробляється Адаптером</span>
         </div>
       </CardHeader>
       <CardContent class="space-y-4">
-        <Field label="Event type" hint="Schema the Adapter will validate payloads against.">
+        <Field label="Тип події" hint="Схема, яку Адаптер використовує для валідації.">
           <Select type="single" bind:value={eventTypeId}>
             <SelectTrigger>
-              {eventTypes.find(t => t.id === eventTypeId)?.name ?? (eventTypeId || 'Select type…')}
+              {eventTypes.find(t => t.id === eventTypeId)?.name ?? (eventTypeId || 'Оберіть тип…')}
             </SelectTrigger>
             <SelectContent>
               {#each eventTypes as t}
@@ -353,25 +365,25 @@
 
         {#if selectedType}
           <div class="rounded-md border border-border bg-muted/30 p-3 space-y-1">
-            <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              Fields from {selectedType.code}
+            <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Поля з {selectedType.code}
             </p>
             {#each Object.entries(selectedType.fields) as [key, field]}
-              <div class="flex items-baseline gap-3 text-[12px]">
+              <div class="flex items-baseline gap-3 text-sm">
                 <span class="font-mono text-foreground w-[160px] shrink-0">{key}</span>
-                <Badge variant="outline" class="text-[10px]">{field.type}</Badge>
-                {#if field.required}<Badge class="text-[10px]">required</Badge>{/if}
+                <Badge variant="outline" class="text-xs">{field.type}</Badge>
+                {#if field.required}<Badge class="text-xs">обов'язкове</Badge>{/if}
                 <span class="text-muted-foreground">{field.description}</span>
               </div>
             {/each}
           </div>
         {/if}
 
-        <Field label="Data type code">
-          <Input bind:value={dataType} placeholder="e.g. ANPR, WEIGHT" />
+        <Field label="Код типу даних">
+          <Input bind:value={dataType} placeholder="напр. ANPR, WEIGHT" />
         </Field>
 
-        <Field label="Data mapping" hint="Map device payload paths to event type fields.">
+        <Field label="Маппінг даних" hint="Зіставте шляхи корисного навантаження з полями типу події.">
           <MappingEditor
             bind:value={mappingObj}
             schema={selectedType?.fields ?? {}}
@@ -385,33 +397,33 @@
     <Card>
       <CardHeader>
         <div class="flex items-baseline justify-between">
-          <CardTitle>Pull triggers</CardTitle>
-          <span class="text-[12px] text-muted-foreground">Adapter → Puller behavior</span>
+          <CardTitle>Тригери Puller</CardTitle>
+          <span class="text-sm text-muted-foreground">Поведінка Adapter → Puller</span>
         </div>
       </CardHeader>
       <CardContent class="space-y-0">
         <div class="flex items-start justify-between gap-4 py-3 border-b border-border">
           <div>
-            <p class="text-[13px] font-medium">Enable trigger</p>
-            <p class="text-[11px] text-muted-foreground mt-0.5">Adapter publishes to events:puller and Puller fetches Trigger URL.</p>
+            <p class="text-sm font-medium">Увімкнути тригер</p>
+            <p class="text-xs text-muted-foreground mt-0.5">Адаптер публікує в events:puller, Puller отримує дані за URL цільового пристрою.</p>
           </div>
           <Switch bind:checked={triggerEnabled} />
         </div>
         <div class="pt-3 space-y-4 {triggerEnabled ? '' : 'opacity-50 pointer-events-none'}">
-          <Field label="Trigger URL" hint="Puller will GET this URL and re-inject the response as a new event.">
+          <Field label="URL цього пристрою" hint="Puller виконає GET запит до цього URL, коли цей пристрій виступає ціллю тригера.">
             <Input bind:value={triggerUrl} placeholder="https://device.local/snapshot" />
           </Field>
-          <Field label="Re-inject as device (source ID)" hint="The Puller will assume this device's identity when re-injecting the response. Leave empty to auto-detect.">
+          <Field label="Тригерує пристрій (source ID)" hint="Коли це джерело спрацьовує, Puller завантажить дані цільового пристрою. Залиште порожнім для вимкнення.">
             <Select type="single" bind:value={triggerSourceId}>
               <SelectTrigger>
                 {#if triggerSourceId}
                   {allConfigs.find(c => c.source_id === triggerSourceId)?.source_id ?? triggerSourceId}
                 {:else}
-                  None (use Puller default)
+                  Не обрано
                 {/if}
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None (use Puller default)</SelectItem>
+                <SelectItem value="">Не обрано</SelectItem>
                 {#each allConfigs.filter(c => c.source_id !== sourceId) as c}
                   <SelectItem value={c.source_id}>
                     {c.source_id}{c.event_type ? ` — ${c.event_type.code}` : ''}
@@ -420,6 +432,22 @@
               </SelectContent>
             </Select>
           </Field>
+
+          {#if !isNew && triggerEnabled && triggerSourceId}
+            <div class="pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onclick={handleManualTrigger}
+                disabled={triggering}
+                class="gap-2"
+              >
+                <Zap size={14} />
+                {triggering ? 'Запуск…' : 'Запустити вручну'}
+              </Button>
+              <p class="text-xs text-muted-foreground mt-1">Негайно поставить задачу в чергу Puller.</p>
+            </div>
+          {/if}
         </div>
       </CardContent>
     </Card>
@@ -428,28 +456,28 @@
     {#if !isNew && (triggeredByConfigs.length > 0 || triggersConfig)}
       <Card>
         <CardHeader>
-          <CardTitle>Trigger relationships</CardTitle>
+          <CardTitle>Зв'язки тригерів</CardTitle>
         </CardHeader>
         <CardContent class="space-y-3">
           {#if triggersConfig}
-            <div class="flex items-center gap-2 text-[13px]">
-              <span class="text-muted-foreground w-[120px] shrink-0">Triggers →</span>
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-muted-foreground w-[130px] shrink-0">Тригерує →</span>
               <a href="/settings/devices/{triggersConfig.id}" class="font-mono hover:underline text-primary">
                 {triggersConfig.source_id}
               </a>
               {#if triggersConfig.event_type}
-                <Badge variant="outline" class="text-[10px]">{triggersConfig.event_type.code}</Badge>
+                <Badge variant="outline" class="text-xs">{triggersConfig.event_type.code}</Badge>
               {/if}
             </div>
           {/if}
           {#each triggeredByConfigs as trig (trig.id)}
-            <div class="flex items-center gap-2 text-[13px]">
-              <span class="text-muted-foreground w-[120px] shrink-0">← Triggered by</span>
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-muted-foreground w-[130px] shrink-0">← Викликається</span>
               <a href="/settings/devices/{trig.id}" class="font-mono hover:underline text-primary">
                 {trig.source_id}
               </a>
               {#if trig.event_type}
-                <Badge variant="outline" class="text-[10px]">{trig.event_type.code}</Badge>
+                <Badge variant="outline" class="text-xs">{trig.event_type.code}</Badge>
               {/if}
             </div>
           {/each}
@@ -464,14 +492,14 @@
 <Dialog bind:open={confirmDelete}>
   <DialogContent>
     <DialogHeader>
-      <DialogTitle>Delete this device?</DialogTitle>
+      <DialogTitle>Видалити цей пристрій?</DialogTitle>
       <DialogDescription>
-        Source <span class="font-mono">{sourceId}</span> will be removed and any active mappings revoked. This cannot be undone.
+        Джерело <span class="font-mono">{sourceId}</span> буде видалено, всі активні маппінги анульовані. Дію неможливо скасувати.
       </DialogDescription>
     </DialogHeader>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (confirmDelete = false)}>Cancel</Button>
-      <Button variant="destructive" onclick={handleDelete}>Delete</Button>
+      <Button variant="outline" onclick={() => (confirmDelete = false)}>Скасувати</Button>
+      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>

@@ -42,7 +42,7 @@
         tx = res;
         noteText = res.note ?? "";
       } catch {
-        toast.error("Transaction not found");
+        toast.error("Транзакцію не знайдено");
         goto("/");
       } finally {
         loading = false;
@@ -55,9 +55,9 @@
     savingNote = true;
     try {
       await api.transactions.update(tx.id, { note: noteText });
-      toast.success("Note saved");
+      toast.success("Нотатку збережено");
     } catch {
-      toast.error("Failed to save note");
+      toast.error("Помилка збереження нотатки");
     } finally {
       savingNote = false;
     }
@@ -73,39 +73,39 @@
   );
 </script>
 
-<TopBar crumbs={["OmniGate", "Transactions", tx?.code ?? "…"]}>
+<TopBar crumbs={["OmniGate", "Транзакції", tx?.code ?? "…"]}>
   {#snippet actions()}
-    <Button size="sm">Export</Button>
+    <Button size="sm">Експорт</Button>
   {/snippet}
 </TopBar>
 
 {#if loading}
   <div class="flex-1 flex items-center justify-center text-muted-foreground">
-    Loading…
+    Завантаження…
   </div>
 {:else if tx}
   <main class="flex-1 p-6 space-y-5">
     <div class="flex items-center gap-3 flex-wrap">
       <Button variant="ghost" size="sm" onclick={() => goto("/")}>
-        <ChevronLeft size={14} /> Back
+        <ChevronLeft size={14} /> Назад
       </Button>
-      <span class="font-mono text-[14px] font-semibold">{tx.code}</span>
+      <span class="font-mono text-sm font-semibold">{tx.code}</span>
       {#if tx.is_open}
-        <Badge>Active</Badge>
+        <Badge>Активна</Badge>
       {:else}
-        <Badge variant="secondary">Closed</Badge>
+        <Badge variant="secondary">Закрита</Badge>
       {/if}
       <GateBadge gateId={tx.gate_id} dot />
-      <span class="text-[12px] text-muted-foreground">
-        opened {fmtTime(tx.created_at)} · {fmtDate(tx.created_at)} · {tx.events
-          ?.length ?? 0} events · {allImages.length} photos
+      <span class="text-sm text-muted-foreground">
+        відкрито {fmtTime(tx.created_at)} · {fmtDate(tx.created_at)} · {tx.events
+          ?.length ?? 0} подій · {allImages.length} фото
       </span>
     </div>
 
     <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-6">
       <!-- Timeline -->
       <div>
-        <h2 class="text-[15px] font-semibold mb-3">Timeline</h2>
+        <h2 class="text-base font-semibold mb-3">Хронологія</h2>
         {#if tx.events?.length}
           <div class="relative pl-5">
             <div
@@ -125,23 +125,23 @@
                             size={14}
                             class="text-muted-foreground shrink-0"
                           />
-                          <span class="text-[13px] font-semibold"
+                          <span class="text-sm font-semibold"
                             >{ev.source_id}</span
                           >
                         </div>
                         <span
-                          class="font-mono text-[11px] text-muted-foreground"
+                          class="font-mono text-xs text-muted-foreground"
                           >{fmtTime(ev.created_at)}</span
                         >
                       </div>
                       <div class="mb-2 flex items-center gap-2">
                         <GateBadge gateId={ev.gate_id} />
                         <span
-                          class="font-mono text-[11px] text-muted-foreground"
+                          class="font-mono text-xs text-muted-foreground"
                           >{ev.id.slice(0, 8)}…</span
                         >
                         {#if ev.event_type}
-                          <Badge variant="outline" class="text-[10px]"
+                          <Badge variant="outline" class="text-xs"
                             >{ev.event_type.name}</Badge
                           >
                         {/if}
@@ -149,7 +149,7 @@
                       <div class="flex gap-4">
                         {#if Object.keys(ev.data).length > 0}
                           <div
-                            class="grid grid-cols-[80px_1fr] gap-y-1 gap-x-3 text-[12px]"
+                            class="grid grid-cols-[90px_1fr] gap-y-1 gap-x-3 text-sm"
                           >
                             {#each Object.entries(ev.data) as [k, v]}
                               <div class="text-muted-foreground">{k}</div>
@@ -173,7 +173,7 @@
                                 <AuthImg
                                   class="w-full h-full object-cover"
                                   src={`/data/${key}`}
-                                  alt="photo"
+                                  alt="фото"
                                 />
                               </button>
                             {/each}
@@ -187,20 +187,20 @@
             </div>
           </div>
         {:else}
-          <p class="text-[13px] text-muted-foreground">No events yet.</p>
+          <p class="text-sm text-muted-foreground">Подій ще немає.</p>
         {/if}
 
         <!-- Note -->
         <div class="mt-5">
-          <h2 class="text-[15px] font-semibold mb-2">Note</h2>
+          <h2 class="text-base font-semibold mb-2">Нотатка</h2>
           <Textarea
             bind:value={noteText}
             rows={3}
-            placeholder="Add a note about this transaction…"
+            placeholder="Додати нотатку про цю транзакцію…"
           />
           <div class="flex justify-end mt-2">
             <Button size="sm" onclick={saveNote} disabled={savingNote}>
-              {savingNote ? "Saving…" : "Save note"}
+              {savingNote ? "Збереження…" : "Зберегти нотатку"}
             </Button>
           </div>
         </div>
@@ -210,9 +210,9 @@
       <div class="space-y-5">
         <div>
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-[15px] font-semibold">Photo evidence</h2>
-            <span class="text-[12px] text-muted-foreground"
-              >{allImages.length} captures</span
+            <h2 class="text-base font-semibold">Фотодокази</h2>
+            <span class="text-sm text-muted-foreground"
+              >{allImages.length} знімків</span
             >
           </div>
           {#if allImages.length}
@@ -242,31 +242,31 @@
               {/each}
             </div>
           {:else}
-            <p class="text-[13px] text-muted-foreground">No photos captured.</p>
+            <p class="text-sm text-muted-foreground">Фото відсутні.</p>
           {/if}
         </div>
 
         <Card>
           <CardHeader class="pb-2">
-            <CardTitle class="text-[15px]">Transaction info</CardTitle>
+            <CardTitle class="text-base">Інформація про транзакцію</CardTitle>
           </CardHeader>
           <CardContent>
             <div
-              class="grid grid-cols-[100px_1fr] gap-y-1.5 gap-x-3 text-[13px]"
+              class="grid grid-cols-[110px_1fr] gap-y-2 gap-x-3 text-sm"
             >
               <span class="text-muted-foreground">ID</span>
-              <span class="font-mono text-[12px]">{tx.id}</span>
-              <span class="text-muted-foreground">Code</span>
-              <span class="font-mono text-[12px]">{tx.code}</span>
-              <span class="text-muted-foreground">Gate</span>
+              <span class="font-mono text-xs">{tx.id}</span>
+              <span class="text-muted-foreground">Код</span>
+              <span class="font-mono text-xs">{tx.code}</span>
+              <span class="text-muted-foreground">Шлагбаум</span>
               <GateBadge gateId={tx.gate_id} />
-              <span class="text-muted-foreground">Status</span>
+              <span class="text-muted-foreground">Статус</span>
               {#if tx.is_open}
-                <Badge class="w-fit">Active</Badge>
+                <Badge class="w-fit">Активна</Badge>
               {:else}
-                <Badge variant="secondary" class="w-fit">Closed</Badge>
+                <Badge variant="secondary" class="w-fit">Закрита</Badge>
               {/if}
-              <span class="text-muted-foreground">Opened</span>
+              <span class="text-muted-foreground">Відкрито</span>
               <span>{fmtDateTime(tx.created_at)}</span>
             </div>
           </CardContent>
@@ -287,7 +287,7 @@
     {#if openPhoto}
       <DialogHeader>
         <DialogTitle
-          class="font-mono text-[12px] font-normal text-muted-foreground"
+          class="font-mono text-xs font-normal text-muted-foreground"
           >{openPhoto.label}</DialogTitle
         >
       </DialogHeader>
@@ -303,4 +303,3 @@
     {/if}
   </DialogContent>
 </Dialog>
-

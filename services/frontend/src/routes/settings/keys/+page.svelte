@@ -56,7 +56,7 @@
         api.auth.permissions(),
       ]);
     } catch {
-      toast.error('Failed to load keys');
+      toast.error('Помилка завантаження ключів');
     } finally {
       loading = false;
     }
@@ -78,7 +78,7 @@
       revealOpen = true;
       await load();
     } catch {
-      toast.error('Failed to create key');
+      toast.error('Помилка створення ключа');
     } finally {
       saving = false;
     }
@@ -94,11 +94,11 @@
     saving = true;
     try {
       await api.auth.keys.update(selected.id, { owner_name: editName, gate_id: editGateId, is_active: editActive });
-      toast.success('Key updated');
+      toast.success('Ключ оновлено');
       editOpen = false;
       await load();
     } catch {
-      toast.error('Failed to update key');
+      toast.error('Помилка оновлення ключа');
     } finally {
       saving = false;
     }
@@ -115,11 +115,11 @@
     saving = true;
     try {
       await api.auth.keys.updatePermissions(selected.id, editPermIds);
-      toast.success('Permissions updated');
+      toast.success('Дозволи оновлено');
       permsOpen = false;
       await load();
     } catch {
-      toast.error('Failed to update permissions');
+      toast.error('Помилка оновлення дозволів');
     } finally {
       saving = false;
     }
@@ -133,11 +133,11 @@
     if (!selected) return;
     try {
       await api.auth.keys.delete(selected.id);
-      toast.success('Key deleted');
+      toast.success('Ключ видалено');
       deleteOpen = false;
       await load();
     } catch {
-      toast.error('Failed to delete key');
+      toast.error('Помилка видалення ключа');
     }
   }
 
@@ -157,7 +157,6 @@
     }
   }
 
-  // Group permissions by module
   const permsByModule = $derived(() => {
     const map = new Map<string, Permission[]>();
     for (const p of allPerms) {
@@ -169,10 +168,10 @@
   });
 </script>
 
-<TopBar crumbs={['OmniGate', 'API Keys']} title="API Keys">
+<TopBar crumbs={['OmniGate', 'API ключі']} title="API ключі">
   {#snippet actions()}
     <Button size="sm" onclick={openCreate}>
-      <Plus size={14} /> New key
+      <Plus size={14} /> Новий ключ
     </Button>
   {/snippet}
 </TopBar>
@@ -183,45 +182,45 @@
       <TableHeader>
         <TableRow>
           <TableHead class="w-[50px]">ID</TableHead>
-          <TableHead>Owner name</TableHead>
-          <TableHead class="w-[160px]">Gate</TableHead>
-          <TableHead class="w-[80px]">Status</TableHead>
-          <TableHead class="w-[100px]">Permissions</TableHead>
-          <TableHead class="w-[110px]">Created</TableHead>
+          <TableHead>Власник</TableHead>
+          <TableHead class="w-[160px]">Шлагбаум</TableHead>
+          <TableHead class="w-[80px]">Статус</TableHead>
+          <TableHead class="w-[100px]">Дозволи</TableHead>
+          <TableHead class="w-[110px]">Створено</TableHead>
           <TableHead class="w-[100px]"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {#each keys as k (k.id)}
           <TableRow>
-            <TableCell class="font-mono text-[12px] text-muted-foreground">#{k.id}</TableCell>
+            <TableCell class="font-mono text-xs text-muted-foreground">#{k.id}</TableCell>
             <TableCell class="font-medium">{k.owner_name}</TableCell>
             <TableCell>
               {#if k.gate_id}
                 {@const g = gates.find(x => x.gate_id === k.gate_id)}
                 <GateBadge gateId={k.gate_id} name={g?.name ?? ''} href="/settings/gates" />
               {:else}
-                <span class="text-muted-foreground text-[12px]">—</span>
+                <span class="text-muted-foreground text-xs">—</span>
               {/if}
             </TableCell>
             <TableCell>
               <Badge variant={k.is_active ? 'default' : 'secondary'}>
-                {k.is_active ? 'Active' : 'Inactive'}
+                {k.is_active ? 'Активний' : 'Неактивний'}
               </Badge>
             </TableCell>
-            <TableCell class="text-[12px] text-muted-foreground">
-              {k.permissions.length} permission{k.permissions.length === 1 ? '' : 's'}
+            <TableCell class="text-xs text-muted-foreground">
+              {k.permissions.length} {k.permissions.length === 1 ? 'дозвіл' : 'дозволів'}
             </TableCell>
-            <TableCell class="text-[12px] text-muted-foreground">{fmtDate(k.created_at)}</TableCell>
+            <TableCell class="text-xs text-muted-foreground">{fmtDate(k.created_at)}</TableCell>
             <TableCell>
               <div class="flex gap-1">
-                <Button variant="ghost" size="icon-sm" title="Permissions" onclick={() => openPerms(k)}>
+                <Button variant="ghost" size="icon-sm" title="Дозволи" onclick={() => openPerms(k)}>
                   <ShieldCheck size={14} />
                 </Button>
-                <Button variant="ghost" size="icon-sm" title="Edit" onclick={() => openEdit(k)}>
+                <Button variant="ghost" size="icon-sm" title="Редагувати" onclick={() => openEdit(k)}>
                   <KeyRound size={14} />
                 </Button>
-                <Button variant="ghost" size="icon-sm" title="Delete" class="hover:text-destructive" onclick={() => openDelete(k)}>
+                <Button variant="ghost" size="icon-sm" title="Видалити" class="hover:text-destructive" onclick={() => openDelete(k)}>
                   <Trash2 size={14} />
                 </Button>
               </div>
@@ -230,7 +229,7 @@
         {/each}
         {#if !loading && keys.length === 0}
           <TableRow>
-            <TableCell colspan={7} class="py-10 text-center text-muted-foreground">No API keys yet.</TableCell>
+            <TableCell colspan={7} class="py-10 text-center text-muted-foreground">API ключів ще немає.</TableCell>
           </TableRow>
         {/if}
       </TableBody>
@@ -242,24 +241,24 @@
 <Dialog bind:open={createOpen}>
   <DialogContent class="max-w-md">
     <DialogHeader>
-      <DialogTitle>New API key</DialogTitle>
-      <DialogDescription>The raw key is shown only once after creation.</DialogDescription>
+      <DialogTitle>Новий API ключ</DialogTitle>
+      <DialogDescription>Ключ буде показано лише один раз після створення.</DialogDescription>
     </DialogHeader>
     <div class="space-y-4 py-2">
-      <Field label="Owner / device name">
+      <Field label="Ім'я власника / пристрою">
         <Input bind:value={newName} placeholder="cam-north-01" />
       </Field>
-      <Field label="Gate ID">
-        <Input bind:value={newGateId} placeholder="gate-north (optional)" />
+      <Field label="ID шлагбауму">
+        <Input bind:value={newGateId} placeholder="gate-north (необов'язково)" />
       </Field>
       <div>
-        <p class="text-[12px] font-medium mb-2">Permissions</p>
+        <p class="text-xs font-medium mb-2">Дозволи</p>
         {#each [...permsByModule()] as [module, perms]}
           <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-2 mb-1">{module}</p>
           {#each perms as p}
             <label class="flex items-center gap-2 py-0.5 cursor-pointer">
               <input type="checkbox" checked={newPermIds.includes(p.id)} onchange={() => toggleNewPerm(p.id)} />
-              <span class="text-[13px]">{p.name}</span>
+              <span class="text-sm">{p.name}</span>
               <span class="text-[11px] text-muted-foreground">{p.description}</span>
             </label>
           {/each}
@@ -267,9 +266,9 @@
       </div>
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (createOpen = false)}>Cancel</Button>
+      <Button variant="outline" onclick={() => (createOpen = false)}>Скасувати</Button>
       <Button onclick={handleCreate} disabled={saving || !newName}>
-        {saving ? 'Creating…' : 'Create key'}
+        {saving ? 'Створення…' : 'Створити ключ'}
       </Button>
     </DialogFooter>
   </DialogContent>
@@ -279,15 +278,15 @@
 <Dialog bind:open={revealOpen}>
   <DialogContent class="max-w-md">
     <DialogHeader>
-      <DialogTitle>API key created</DialogTitle>
-      <DialogDescription>Copy this key now — it will not be shown again.</DialogDescription>
+      <DialogTitle>API ключ створено</DialogTitle>
+      <DialogDescription>Скопіюйте ключ зараз — він більше не буде показаний.</DialogDescription>
     </DialogHeader>
-    <div class="rounded-md bg-muted p-3 font-mono text-[13px] break-all select-all">{newKeyValue}</div>
+    <div class="rounded-md bg-muted p-3 font-mono text-sm break-all select-all">{newKeyValue}</div>
     <DialogFooter>
-      <Button onclick={() => { navigator.clipboard.writeText(newKeyValue); toast.success('Copied'); }}>
-        Copy
+      <Button onclick={() => { navigator.clipboard.writeText(newKeyValue); toast.success('Скопійовано'); }}>
+        Копіювати
       </Button>
-      <Button variant="outline" onclick={() => (revealOpen = false)}>Close</Button>
+      <Button variant="outline" onclick={() => (revealOpen = false)}>Закрити</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>
@@ -295,18 +294,18 @@
 <!-- Edit dialog -->
 <Dialog bind:open={editOpen}>
   <DialogContent class="max-w-sm">
-    <DialogHeader><DialogTitle>Edit key #{selected?.id}</DialogTitle></DialogHeader>
+    <DialogHeader><DialogTitle>Редагувати ключ #{selected?.id}</DialogTitle></DialogHeader>
     <div class="space-y-4 py-2">
-      <Field label="Owner name">
+      <Field label="Ім'я власника">
         <Input bind:value={editName} />
       </Field>
-      <Field label="Gate">
+      <Field label="Шлагбаум">
         <Select type="single" bind:value={editGateId}>
           <SelectTrigger>
-            {gates.find(g => g.gate_id === editGateId)?.name ?? (editGateId || 'None')}
+            {gates.find(g => g.gate_id === editGateId)?.name ?? (editGateId || 'Не обрано')}
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">None</SelectItem>
+            <SelectItem value="">Не обрано</SelectItem>
             {#each gates as g}
               <SelectItem value={g.gate_id}>{g.name} ({g.gate_id})</SelectItem>
             {/each}
@@ -314,14 +313,14 @@
         </Select>
       </Field>
       <div class="flex items-center justify-between">
-        <span class="text-[13px] font-medium">Active</span>
+        <span class="text-sm font-medium">Активний</span>
         <Switch bind:checked={editActive} />
       </div>
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (editOpen = false)}>Cancel</Button>
+      <Button variant="outline" onclick={() => (editOpen = false)}>Скасувати</Button>
       <Button onclick={handleEdit} disabled={saving}>
-        {saving ? 'Saving…' : 'Save'}
+        {saving ? 'Збереження…' : 'Зберегти'}
       </Button>
     </DialogFooter>
   </DialogContent>
@@ -331,7 +330,7 @@
 <Dialog bind:open={permsOpen}>
   <DialogContent class="max-w-md">
     <DialogHeader>
-      <DialogTitle>Permissions — {selected?.owner_name}</DialogTitle>
+      <DialogTitle>Дозволи — {selected?.owner_name}</DialogTitle>
     </DialogHeader>
     <div class="space-y-1 max-h-[400px] overflow-y-auto py-2">
       {#each [...permsByModule()] as [module, perms]}
@@ -339,16 +338,16 @@
         {#each perms as p}
           <label class="flex items-center gap-2 py-0.5 cursor-pointer">
             <input type="checkbox" checked={editPermIds.includes(p.id)} onchange={() => togglePerm(p.id)} />
-            <span class="text-[13px]">{p.name}</span>
+            <span class="text-sm">{p.name}</span>
             <span class="text-[11px] text-muted-foreground ml-auto">{p.id}</span>
           </label>
         {/each}
       {/each}
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (permsOpen = false)}>Cancel</Button>
+      <Button variant="outline" onclick={() => (permsOpen = false)}>Скасувати</Button>
       <Button onclick={handlePerms} disabled={saving}>
-        {saving ? 'Saving…' : 'Update permissions'}
+        {saving ? 'Збереження…' : 'Оновити дозволи'}
       </Button>
     </DialogFooter>
   </DialogContent>
@@ -358,14 +357,14 @@
 <Dialog bind:open={deleteOpen}>
   <DialogContent class="max-w-sm">
     <DialogHeader>
-      <DialogTitle>Delete key #{selected?.id}?</DialogTitle>
+      <DialogTitle>Видалити ключ #{selected?.id}?</DialogTitle>
       <DialogDescription>
-        Key for <span class="font-medium">{selected?.owner_name}</span> will be permanently revoked. Any device using it will lose access.
+        Ключ для <span class="font-medium">{selected?.owner_name}</span> буде назавжди відкликано. Пристрій, що використовує його, втратить доступ.
       </DialogDescription>
     </DialogHeader>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (deleteOpen = false)}>Cancel</Button>
-      <Button variant="destructive" onclick={handleDelete}>Delete</Button>
+      <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
+      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>

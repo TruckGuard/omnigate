@@ -33,6 +33,17 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info:
             log_record["exception"] = self.formatException(record.exc_info)
 
+        # Inject OpenTelemetry trace context
+        try:
+            from opentelemetry import trace
+            span = trace.get_current_span()
+            if span and span.get_span_context().is_valid:
+                ctx = span.get_span_context()
+                log_record["trace_id"] = format(ctx.trace_id, "032x")
+                log_record["span_id"] = format(ctx.span_id, "016x")
+        except ImportError:
+            pass
+
         return json.dumps(log_record)
 
     def formatTime(self, record, datefmt=None):

@@ -11,6 +11,46 @@ import (
 	"gorm.io/datatypes"
 )
 
+func HandleTriggerDevice(c *gin.Context) {
+	id := c.Param("id")
+	configID, err := uuid.Parse(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config ID"})
+		return
+	}
+
+	var config models.DeviceConfig
+	if err := repository.DB.First(&config, "id = ?", configID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Config not found"})
+		return
+	}
+
+	if !config.TriggerEnabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Trigger not enabled for this device"})
+		return
+	}
+
+	if config.TriggerSourceID == nil || *config.TriggerSourceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No trigger_source_id configured"})
+		return
+	}
+
+	msg := map[string]interface{}{
+		"trigger_source_id": *config.TriggerSourceID,
+		"gate_id":           config.GateID,
+		"source_id":         config.SourceID,
+		"transaction_id":    "",
+		"context":           map[string]interface{}{},
+	}
+	data, _ := json.Marshal(msg)
+	if err := repository.PublishToPuller(string(data)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to queue trigger"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Trigger queued"})
+}
+
 func HandleListDeviceConfigs(c *gin.Context) {
 	configs := repository.ListDeviceConfigs()
 	c.JSON(http.StatusOK, configs)
@@ -79,6 +119,9 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 	}
 
 	var req struct {
+		EventTypeID     *uuid.UUID       `json:"event_type_id"`
+		GateID          *string          `json:"gate_id"`
+		DataType        *string          `json:"data_type"`
 		DataMapping     *json.RawMessage `json:"data_mapping"`
 		TriggerEnabled  *bool            `json:"trigger_enabled"`
 		TriggerURL      *string          `json:"trigger_url"`
@@ -89,6 +132,15 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 		return
 	}
 
+	if req.EventTypeID != nil {
+		config.EventTypeID = *req.EventTypeID
+	}
+	if req.GateID != nil {
+		config.GateID = *req.GateID
+	}
+	if req.DataType != nil {
+		config.DataType = *req.DataType
+	}
 	if req.DataMapping != nil {
 		config.DataMapping = datatypes.JSON(*req.DataMapping)
 	}

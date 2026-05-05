@@ -27,7 +27,6 @@
   let isNew      = $state(false);
   let selected   = $state<Gate | null>(null);
 
-  // Form
   let fGateId      = $state('');
   let fName        = $state('');
   let fLocation    = $state('');
@@ -36,7 +35,7 @@
 
   async function load() {
     try { gates = await api.gates.list(); }
-    catch { toast.error('Failed to load gates'); }
+    catch { toast.error('Помилка завантаження шлагбаумів'); }
     finally { loading = false; }
   }
 
@@ -56,23 +55,23 @@
   }
 
   async function handleSave() {
-    if (!fGateId || !fName) { toast.error('Gate ID and name are required'); return; }
+    if (!fGateId || !fName) { toast.error('ID та назва шлагбауму обов\'язкові'); return; }
     saving = true;
     try {
       if (isNew) {
         await api.gates.create({ gate_id: fGateId, name: fName, location: fLocation, description: fDescription });
-        toast.success('Gate created');
+        toast.success('Шлагбаум створено');
       } else if (selected) {
         await api.gates.update(selected.id, {
           name: fName, location: fLocation,
           description: fDescription, status: fActive ? 'active' : 'inactive',
         });
-        toast.success('Gate saved');
+        toast.success('Шлагбаум збережено');
       }
       editOpen = false;
       await load();
     } catch {
-      toast.error('Save failed');
+      toast.error('Помилка збереження');
     } finally {
       saving = false;
     }
@@ -82,19 +81,19 @@
     if (!selected) return;
     try {
       await api.gates.delete(selected.id);
-      toast.success('Gate deleted');
+      toast.success('Шлагбаум видалено');
       deleteOpen = false;
       await load();
     } catch {
-      toast.error('Failed to delete gate');
+      toast.error('Помилка видалення шлагбауму');
     }
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Gates']} title="Gates">
+<TopBar crumbs={['OmniGate', 'Шлагбауми']} title="Шлагбауми">
   {#snippet actions()}
     <Button size="sm" onclick={openCreate}>
-      <Plus size={14} /> New gate
+      <Plus size={14} /> Новий шлагбаум
     </Button>
   {/snippet}
 </TopBar>
@@ -104,10 +103,10 @@
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead class="w-[160px]">Gate ID</TableHead>
-          <TableHead>Name</TableHead>
-          <TableHead>Location</TableHead>
-          <TableHead class="w-[90px]">Status</TableHead>
+          <TableHead class="w-[160px]">ID шлагбауму</TableHead>
+          <TableHead>Назва</TableHead>
+          <TableHead>Місцезнаходження</TableHead>
+          <TableHead class="w-[90px]">Статус</TableHead>
           <TableHead class="w-[80px]"></TableHead>
         </TableRow>
       </TableHeader>
@@ -116,10 +115,10 @@
           <TableRow class="cursor-pointer" onclick={() => goto(`/settings/gates/${g.id}`)}>
             <TableCell><GateBadge gateId={g.gate_id} /></TableCell>
             <TableCell class="font-medium">{g.name}</TableCell>
-            <TableCell class="text-[12px] text-muted-foreground">{g.location || '—'}</TableCell>
+            <TableCell class="text-sm text-muted-foreground">{g.location || '—'}</TableCell>
             <TableCell>
               <Badge variant={g.status === 'active' ? 'default' : 'secondary'}>
-                {g.status === 'active' ? 'Active' : 'Inactive'}
+                {g.status === 'active' ? 'Активний' : 'Неактивний'}
               </Badge>
             </TableCell>
             <TableCell>
@@ -137,7 +136,7 @@
         {/each}
         {#if !loading && gates.length === 0}
           <TableRow>
-            <TableCell colspan={5} class="py-10 text-center text-muted-foreground">No gates configured.</TableCell>
+            <TableCell colspan={5} class="py-10 text-center text-muted-foreground">Шлагбауми не налаштовані.</TableCell>
           </TableRow>
         {/if}
       </TableBody>
@@ -149,34 +148,34 @@
 <Dialog bind:open={editOpen}>
   <DialogContent class="max-w-md">
     <DialogHeader>
-      <DialogTitle>{isNew ? 'New gate' : `Edit gate — ${selected?.gate_id}`}</DialogTitle>
+      <DialogTitle>{isNew ? 'Новий шлагбаум' : `Редагувати — ${selected?.gate_id}`}</DialogTitle>
     </DialogHeader>
     <div class="space-y-4 py-2">
       <div class="grid grid-cols-2 gap-4">
-        <Field label="Gate ID" hint="Short unique identifier, e.g. gate-north">
+        <Field label="ID шлагбауму" hint="Короткий унікальний ідентифікатор, напр. gate-north">
           <Input bind:value={fGateId} placeholder="gate-north" disabled={!isNew} class="font-mono" />
         </Field>
-        <Field label="Name">
-          <Input bind:value={fName} placeholder="North Gate" />
+        <Field label="Назва">
+          <Input bind:value={fName} placeholder="Північна брама" />
         </Field>
       </div>
-      <Field label="Location">
-        <Input bind:value={fLocation} placeholder="Building A, Entrance 1" />
+      <Field label="Місцезнаходження">
+        <Input bind:value={fLocation} placeholder="Будівля А, Вхід 1" />
       </Field>
-      <Field label="Description">
-        <Textarea bind:value={fDescription} rows={2} placeholder="Optional notes…" />
+      <Field label="Опис">
+        <Textarea bind:value={fDescription} rows={2} placeholder="Необов'язкові нотатки…" />
       </Field>
       {#if !isNew}
         <div class="flex items-center justify-between">
-          <span class="text-[13px] font-medium">Active</span>
+          <span class="text-sm font-medium">Активний</span>
           <Switch bind:checked={fActive} />
         </div>
       {/if}
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (editOpen = false)}>Cancel</Button>
+      <Button variant="outline" onclick={() => (editOpen = false)}>Скасувати</Button>
       <Button onclick={handleSave} disabled={saving || !fGateId || !fName}>
-        {saving ? 'Saving…' : isNew ? 'Create gate' : 'Save'}
+        {saving ? 'Збереження…' : isNew ? 'Створити шлагбаум' : 'Зберегти'}
       </Button>
     </DialogFooter>
   </DialogContent>
@@ -186,15 +185,15 @@
 <Dialog bind:open={deleteOpen}>
   <DialogContent class="max-w-sm">
     <DialogHeader>
-      <DialogTitle>Delete gate?</DialogTitle>
+      <DialogTitle>Видалити шлагбаум?</DialogTitle>
       <DialogDescription>
-        Gate <span class="font-mono">{selected?.gate_id}</span> will be permanently removed.
-        Any devices or transactions referencing it will retain the gate ID string.
+        Шлагбаум <span class="font-mono">{selected?.gate_id}</span> буде назавжди видалено.
+        Пристрої та транзакції збережуть рядок з ID шлагбауму.
       </DialogDescription>
     </DialogHeader>
     <DialogFooter>
-      <Button variant="outline" onclick={() => (deleteOpen = false)}>Cancel</Button>
-      <Button variant="destructive" onclick={handleDelete}>Delete</Button>
+      <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
+      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>

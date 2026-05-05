@@ -11,14 +11,28 @@ class PullWorker:
     def __init__(self):
         self.ingestor = IngestorClient(cfg.INGESTOR_URL)
 
+    def _get_trigger_url(self, trigger_source_id: str) -> str:
+        """Fetch device config from Core to resolve the pull URL."""
+        url = f"{cfg.CORE_URL}/configs/devices/{trigger_source_id}"
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        device_config = resp.json()
+        trigger_url = device_config.get("trigger_url")
+        if not trigger_url:
+            raise ValueError(f"No trigger_url configured for device {trigger_source_id}")
+        return trigger_url
+
     def process(self, raw: str) -> None:
         msg = json.loads(raw)
 
-        trigger_url     = msg["trigger_url"]
-        transaction_id  = msg["transaction_id"]
-        gate_id         = msg["gate_id"]
-        trigger_source_id = msg.get("trigger_source_id")
-        payload         = msg.get("context") or {}
+        trigger_source_id = msg["trigger_source_id"]
+        transaction_id    = msg["transaction_id"]
+        gate_id           = msg["gate_id"]
+        payload           = msg.get("context") or {}
+
+        logger.info(f"Resolving trigger_url for {trigger_source_id}, tx {transaction_id}")
+
+        trigger_url = self._get_trigger_url(trigger_source_id)
 
         logger.info(f"Pulling {trigger_url} for tx {transaction_id}")
 

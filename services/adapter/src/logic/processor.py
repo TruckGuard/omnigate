@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Any
 import xmltodict
 from jsonpath_ng import parse
+from opentelemetry import trace
 
 from src.clients.core_client import CoreClient
 from src.clients.puller_client import PullerClient
@@ -34,6 +35,13 @@ class EventProcessor:
         gate_id = event["gate_id"]
         
         logger.info(f"Processing event from {source_id} at gate {gate_id}")
+        
+        # Enrich span with business context
+        span = trace.get_current_span()
+        span.set_attributes({
+            "truckguard.gate_id": gate_id,
+            "truckguard.source_id": source_id,
+        })
         
         # 1. Get device configuration (with caching)
         config = self._get_config(source_id)
@@ -79,15 +87,17 @@ class EventProcessor:
         transaction_id = response.get("transaction_id")
         logger.info(f"Event created with transaction {transaction_id}")
         
-        # 6. Trigger PULLER if configured
-        if config.get("trigger_enabled") and config.get("trigger_url"):
+        if transaction_id:
+            span.set_attribute("truckguard.transaction_id", str(transaction_id))
+        
+        # 6. Trigger PULLER if configured (URL is resolved from target device's config by Puller)
+        if config.get("trigger_enabled") and config.get("trigger_source_id"):
             self.puller.trigger_pull(
-                trigger_url=config["trigger_url"],
+                trigger_source_id=config["trigger_source_id"],
                 transaction_id=transaction_id,
                 gate_id=gate_id,
                 source_id=source_id,
                 event_data=transformed_data,
-                trigger_source_id=config.get("trigger_source_id"),
             )
     
     def _get_config(self, source_id: str) -> Dict:

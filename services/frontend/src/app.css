@@ -91,8 +91,8 @@
 
 html, body {
   font-family: var(--font-family-ui);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 15px;
+  line-height: 22px;
   color: var(--color-fg);
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
