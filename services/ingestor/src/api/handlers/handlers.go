@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/omnigate/services/ingestor/src/models"
 	"github.com/omnigate/services/ingestor/src/repository"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // HandleIngest processes incoming events (with or without an image)
@@ -119,6 +121,12 @@ func HandleIngest(c *gin.Context) {
 		TransactionID: txnIDPtr,
 		Timestamp:     now,
 	}
+
+	// 3.1 Inject Trace Context for async propagation
+	tc := propagation.TraceContext{}
+	carrier := propagation.MapCarrier{}
+	tc.Inject(c.Request.Context(), carrier)
+	event.TraceContext = carrier.Get("traceparent")
 
 	// 4. Publish to Valkey Stream
 	if err := repository.PublishToStream("events:adapter", event.ToJSON()); err != nil {

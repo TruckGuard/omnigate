@@ -95,11 +95,14 @@ func NewLogger(serviceName string) *slog.Logger {
 	stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})
-	
+
 	otelHandler := otelslog.NewHandler(serviceName)
-	
-	return slog.New(multiHandler{
-		handlers: []slog.Handler{stdoutHandler, otelHandler},
+
+	// Combine handlers and wrap with TraceHandler for log-trace correlation
+	return slog.New(&TraceHandler{
+		Handler: multiHandler{
+			handlers: []slog.Handler{stdoutHandler, otelHandler},
+		},
 	})
 }
 

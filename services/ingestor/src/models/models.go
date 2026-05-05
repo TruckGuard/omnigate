@@ -13,6 +13,7 @@ type IngestEvent struct {
 	RawStorageKey string    `json:"raw_storage_key"`
 	ImageKeys     []string  `json:"image_keys"`
 	TransactionID *string   `json:"transaction_id,omitempty"`
+	TraceContext  string    `json:"trace_context,omitempty"`
 	Timestamp     time.Time `json:"timestamp"`
 }
 

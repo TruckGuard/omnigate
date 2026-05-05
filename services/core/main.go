@@ -18,10 +18,10 @@ import (
 )
 
 func main() {
-	logger := telemetry.NewLogger("truckguard-core")
+	logger := telemetry.NewLogger("omnigate-core")
 	slog.SetDefault(logger)
 
-	if err := telemetry.Init("truckguard-core"); err != nil {
+	if err := telemetry.Init("omnigate-core"); err != nil {
 		logger.Error("otel init failed", "error", err)
 		os.Exit(1)
 	}
@@ -38,7 +38,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.Logger())
-	r.Use(otelgin.Middleware("truckguard-core"))
+	r.Use(otelgin.Middleware("omnigate-core"))
 
 	r.Match([]string{"GET", "HEAD"}, "/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -65,6 +65,7 @@ func main() {
 		api.GET("/configs/devices/:source_id", handlers.HandleGetDeviceConfig)
 		api.POST("/configs/devices", handlers.HandleCreateDeviceConfig)
 		api.PUT("/configs/devices/:id", handlers.HandleUpdateDeviceConfig)
+		api.POST("/configs/devices/:id/trigger", handlers.HandleTriggerDevice)
 		api.DELETE("/configs/devices/:id", handlers.HandleDeleteDeviceConfig)
 
 		// Event Types

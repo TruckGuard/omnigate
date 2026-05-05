@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/omnigate/services/auth/src/models"
 	"github.com/omnigate/services/auth/src/repository"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -196,17 +198,22 @@ func HandleValidate(c *gin.Context) {
 	}
 
 	// 5. Success - Set Headers and Body
+	span := trace.SpanFromContext(c.Request.Context())
+	
 	c.Header("X-Permissions", strings.Join(repository.ExpandPermissions(perms), ","))
 	if userID != "" {
 		c.Header("X-User-ID", userID)
 		c.Header("X-Username", username)
+		span.SetAttributes(attribute.String("truckguard.user_id", userID))
 	}
 	if sourceID != "" {
 		c.Header("X-Source-ID", sourceID)
 		c.Header("X-Source-Name", sourceName)
+		span.SetAttributes(attribute.String("truckguard.source_id", sourceID))
 	}
 	if gateID != "" {
 		c.Header("X-Gate-ID", gateID)
+		span.SetAttributes(attribute.String("truckguard.gate_id", gateID))
 	}
 
 	// Return full user data for frontend

@@ -18,7 +18,7 @@ func Logger() gin.HandlerFunc {
 		end := time.Now()
 		latency := end.Sub(start)
 
-		slog.Info("Request",
+		slog.InfoContext(c.Request.Context(), "Request",
 			"status", c.Writer.Status(),
 			"method", c.Request.Method,
 			"path", path,

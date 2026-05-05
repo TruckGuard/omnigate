@@ -42,11 +42,11 @@ func Logger() gin.HandlerFunc {
 
 		msg := fmt.Sprintf("HTTP Request: %s", path)
 		if statusCode >= 500 {
-			slog.Error(msg, attrs...)
+			slog.ErrorContext(c.Request.Context(), msg, attrs...)
 		} else if statusCode >= 400 {
-			slog.Warn(msg, attrs...)
+			slog.WarnContext(c.Request.Context(), msg, attrs...)
 		} else {
-			slog.Info(msg, attrs...)
+			slog.InfoContext(c.Request.Context(), msg, attrs...)
 		}
 	}
 }

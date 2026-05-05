@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/omnigate/services/core/src/logic"
 	"github.com/omnigate/services/core/src/repository"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func HandleListTransactions(c *gin.Context) {
@@ -57,7 +59,17 @@ func HandleCreateTransaction(c *gin.Context) {
 		return
 	}
 
+	// Enrich span with business context
+	span := trace.SpanFromContext(c.Request.Context())
+	span.SetAttributes(
+		attribute.String("truckguard.gate_id", req.GateID),
+	)
+
 	txID := logic.FindOrCreateTransaction(req.GateID)
+	
+	span.SetAttributes(
+		attribute.String("truckguard.transaction_id", txID.String()),
+	)
 	tx := repository.GetTransaction(txID)
 	c.JSON(http.StatusCreated, tx)
 }

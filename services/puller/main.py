@@ -4,6 +4,7 @@ import logging
 from redis import Redis
 from src.config import cfg
 from src.worker.puller_worker import PullWorker
+from src.utils.logging_utils import setup_logging
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -17,10 +18,12 @@ from opentelemetry._logs import set_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+import json
 
 
 def init_otel(service_name: str) -> None:
-    endpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317")
+    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317")
     resource = Resource(attributes={"service.name": service_name})
     
     # Tracing
@@ -45,8 +48,7 @@ def init_otel(service_name: str) -> None:
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("omnigate-puller")
+    logger = setup_logging("omnigate-puller")
 
     try:
         init_otel("omnigate-puller")
@@ -92,7 +94,28 @@ def main():
                     raw = data.get("data", "")
 
                     try:
-                        worker.process(raw)
+                        # Extract Trace Context from stream message
+                        carrier = {}
+                        try:
+                            msg_json = json.loads(raw)
+                            if "trace_context" in msg_json:
+                                carrier = {"traceparent": msg_json["trace_context"]}
+                        except Exception:
+                            pass
+                        
+                        extracted_context = TraceContextTextMapPropagator().extract(carrier=carrier)
+                        
+                        tracer = trace.get_tracer(__name__)
+                        with tracer.start_as_current_span("puller-process", context=extracted_context) as span:
+                            msg_data = json.loads(raw)
+                            span.set_attributes({
+                                "truckguard.gate_id": msg_data.get("gate_id"),
+                                "truckguard.source_id": msg_data.get("source_id"),
+                                "truckguard.transaction_id": msg_data.get("transaction_id"),
+                                "truckguard.trigger_source_id": msg_data.get("trigger_source_id"),
+                            })
+                            worker.process(raw)
+                        
                         redis.xack(cfg.STREAM_PULLER, GROUP, msg_id)
                         retry_counts.pop(msg_id, None)
                     except Exception as e:
