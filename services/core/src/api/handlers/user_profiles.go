@@ -20,10 +20,10 @@ func HandleListUserProfiles(c *gin.Context) {
 		}
 		profile := repository.GetUserProfileByAuthID(uint(authID))
 		if profile == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
+			c.JSON(http.StatusOK, []models.UserProfile{}) // Повертаємо порожній масив замість 404
 			return
 		}
-		c.JSON(http.StatusOK, profile)
+		c.JSON(http.StatusOK, []models.UserProfile{*profile}) // Повертаємо масив з одним профілем
 		return
 	}
 	c.JSON(http.StatusOK, repository.ListUserProfiles())

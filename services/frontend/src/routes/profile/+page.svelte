@@ -54,8 +54,11 @@
       const validate = await api.auth.validate();
       const authId = Number(validate.id);
       if (!isNaN(authId)) {
-        const profiles = await api.profiles.list(authId);
-        if (profiles.length > 0) {
+        const res = await api.profiles.list(authId);
+        // Гарантуємо, що працюємо з масивом
+        const profiles = Array.isArray(res) ? res : [res];
+
+        if (profiles.length > 0 && profiles[0].id) {
           profile = profiles[0];
           pfFirst = profile.first_name ?? '';
           pfLast  = profile.last_name ?? '';

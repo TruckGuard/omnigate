@@ -194,50 +194,30 @@ func seedData() {
 		}
 	}
 
-	// Permission Hierarchy
-	hierarchy := []models.PermissionHierarchy{
-		{ParentID: "manage:users", ChildID: "read:users"},
-		{ParentID: "manage:users", ChildID: "create:users"},
-		{ParentID: "manage:users", ChildID: "update:users"},
-		{ParentID: "manage:users", ChildID: "delete:users"},
-		{ParentID: "manage:users", ChildID: "read:roles"},
-
-		{ParentID: "manage:roles", ChildID: "read:roles"},
-		{ParentID: "manage:roles", ChildID: "create:roles"},
-		{ParentID: "manage:roles", ChildID: "update:roles"},
-		{ParentID: "manage:roles", ChildID: "delete:roles"},
-
-		{ParentID: "manage:events", ChildID: "read:events"},
-		{ParentID: "manage:events", ChildID: "create:events"},
-		{ParentID: "manage:events", ChildID: "update:events"},
-		{ParentID: "manage:events", ChildID: "delete:events"},
-
-		{ParentID: "manage:transactions", ChildID: "read:transactions"},
-		{ParentID: "manage:transactions", ChildID: "create:transactions"},
-		{ParentID: "manage:transactions", ChildID: "update:transactions"},
-		{ParentID: "manage:transactions", ChildID: "delete:transactions"},
-
-		{ParentID: "manage:configs", ChildID: "read:configs"},
-		{ParentID: "manage:configs", ChildID: "create:configs"},
-		{ParentID: "manage:configs", ChildID: "update:configs"},
-		{ParentID: "manage:configs", ChildID: "delete:configs"},
-
-		{ParentID: "manage:types", ChildID: "read:types"},
-		{ParentID: "manage:types", ChildID: "create:types"},
-		{ParentID: "manage:types", ChildID: "update:types"},
-		{ParentID: "manage:types", ChildID: "delete:types"},
-
-		{ParentID: "manage:gates", ChildID: "read:gates"},
-		{ParentID: "manage:gates", ChildID: "create:gates"},
-		{ParentID: "manage:gates", ChildID: "update:gates"},
-		{ParentID: "manage:gates", ChildID: "delete:gates"},
-
-		{ParentID: "manage:profiles", ChildID: "read:profiles"},
-		{ParentID: "manage:profiles", ChildID: "create:profiles"},
-		{ParentID: "manage:profiles", ChildID: "update:profiles"},
-		{ParentID: "manage:profiles", ChildID: "delete:profiles"},
+	// Автоматична генерація ієрархії для CRUD-сутностей
+	var hierarchy []models.PermissionHierarchy
+	
+	// Список усіх ресурсів, які підтримують CRUD (згідно з функцією genCRUDPerms у цьому ж файлі)
+	crudResources := []string{
+		"users", "roles", "keys", 
+		"events", "transactions", "configs", 
+		"types", "gates", "profiles",
 	}
 
+	for _, res := range crudResources {
+		managePerm := "manage:" + res
+		hierarchy = append(hierarchy,
+			models.PermissionHierarchy{ParentID: managePerm, ChildID: "read:" + res},
+			models.PermissionHierarchy{ParentID: managePerm, ChildID: "create:" + res},
+			models.PermissionHierarchy{ParentID: managePerm, ChildID: "update:" + res},
+			models.PermissionHierarchy{ParentID: managePerm, ChildID: "delete:" + res},
+		)
+	}
+
+	// Додавання крос-ресурсних специфічних зв'язків (якщо юзер може керувати користувачами, він повинен бачити список ролей для їх призначення)
+	hierarchy = append(hierarchy, models.PermissionHierarchy{ParentID: "manage:users", ChildID: "read:roles"})
+
+	// Збереження ієрархії в БД
 	for _, h := range hierarchy {
 		repository.DB.Where("parent_id = ? AND child_id = ?", h.ParentID, h.ChildID).FirstOrCreate(&h)
 	}

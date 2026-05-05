@@ -62,7 +62,7 @@ Usage: wrap any button, table action column, or section in `<PermGuard permissio
 | `manage:roles` | Roles: Create, Edit, Delete, Assign permissions buttons |
 | `read:keys` | API Keys: sidebar item visible, page accessible |
 | `manage:keys` | API Keys: Create, Edit, Delete, Assign permissions buttons |
-| `write:events` | Transactions: Close transaction button |
+| `update:transactions` | Transactions: Close transaction button |
 
 > Additional permission IDs (for gates, types, configs) may exist in the DB. All `GET /api/auth/admin/permissions` results should be used at runtime; the table above lists only the ones derived from observed policy rules.
 
@@ -85,14 +85,14 @@ Usage: wrap any button, table action column, or section in `<PermGuard permissio
 | Page | Button / action | Required permission |
 |---|---|---|
 | Transactions dashboard | _(no mutating actions)_ | — |
-| Transaction detail | Close transaction | `write:events` |
+| Transaction detail | Close transaction | `update:transactions` |
 | Transaction detail | Save note | _(always — operators add notes)_ |
 | Devices list | New device button | `manage:keys` _(creating a device = binding to a key)_ |
 | Device edit | Save, Delete buttons | `manage:keys` |
 | API Keys list | Create key button | `manage:keys` |
 | API Keys list | Edit / Delete / Permissions buttons per row | `manage:keys` |
-| Event Types list | Create type button | `manage:roles` _(admin-level config)_ |
-| Gates list | Create / Edit / Delete | `manage:roles` _(admin-level config)_ |
+| Event Types list | Create type button | `manage:types` _(admin-level config)_ |
+| Gates list | Create / Edit / Delete | `manage:gates` _(admin-level config)_ |
 | Users list | Edit role, Reset password, Delete per row | `manage:users` |
 | User profile | Save account section | `manage:users` |
 | User profile | Save profile section | `manage:users` |

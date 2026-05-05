@@ -1,6 +1,7 @@
 .PHONY: env-up \
         dev-up dev-up-build dev-down dev-down-soft dev-rebuild dev-restart dev-init logs \
-        build push
+        build push \
+        test test-reset
 
 # ─── Environment ──────────────────────────────────────────────────────────────
 env-up:
@@ -29,6 +30,12 @@ logs:
 dev-init:
 	docker compose --env-file .env -f infra/docker-compose.dev.yaml up -d minio minio-init
 	$(MAKE) dev-restart
+
+test:
+	@python test-scripts/test.py
+
+test-reset:
+	@python test-scripts/test.py --reset
 
 # ─── Production build ─────────────────────────────────────────────────────────
 REGISTRY  ?= ghcr.io

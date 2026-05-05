@@ -5,28 +5,28 @@ info:
   description: "OmniGate Logistics & ANPR microservices gateway API."
 
 servers:
-  - url: http://localhost:8090
-    description: Dev Gateway (Nginx)
+- url: http://localhost:8090
+  description: Dev Gateway (Nginx)
 
 tags:
-  - name: Auth
-    description: Authentication & Session Management
-  - name: Auth Admin
-    description: Admin User, Role, & API Key Management
-  - name: Ingestor
-    description: Ingestion of data from peripheral hardware
-  - name: Core Events
-    description: Standard events processing
-  - name: Core Transactions
-    description: Sticky session transactions
-  - name: Core Configuration
-    description: Device mappings and settings
-  - name: Core Types
-    description: Dynamic event types and schemas
-  - name: Puller
-    description: Internal asynchronous pollers
-  - name: Health
-    description: Service healthchecks
+- name: Auth
+  description: Authentication & Session Management
+- name: Auth Admin
+  description: Admin User, Role, & API Key Management
+- name: Ingestor
+  description: Ingestion of data from peripheral hardware
+- name: Core Events
+  description: Standard events processing
+- name: Core Transactions
+  description: Sticky session transactions
+- name: Core Configuration
+  description: Device mappings and settings
+- name: Core Types
+  description: Dynamic event types and schemas
+- name: Puller
+  description: Internal asynchronous pollers
+- name: Health
+  description: Service healthchecks
 
 components:
   securitySchemes:
@@ -40,7 +40,7 @@ components:
       name: X-API-Key
 
 security:
-  - bearerAuth: []
+- bearerAuth: []
 
 paths:
   # ==============================
@@ -49,7 +49,7 @@ paths:
   /api/auth/login:
     post:
       tags:
-        - Auth
+      - Auth
       summary: User login
       security: []
       requestBody:
@@ -59,8 +59,8 @@ paths:
             schema:
               type: object
               required:
-                - username
-                - password
+              - username
+              - password
               properties:
                 username:
                   type: string
@@ -76,7 +76,7 @@ paths:
   /api/auth/register:
     post:
       tags:
-        - Auth
+      - Auth
       summary: Register a new user
       requestBody:
         required: true
@@ -85,8 +85,8 @@ paths:
             schema:
               type: object
               required:
-                - username
-                - password
+              - username
+              - password
               properties:
                 username:
                   type: string
@@ -98,10 +98,11 @@ paths:
       responses:
         '201':
           description: Successfully registered
+      description: '**[Requires: `manage:users`]**'
   /api/auth/validate:
     get:
       tags:
-        - Auth
+      - Auth
       summary: Validate token (Internal)
       responses:
         '200':
@@ -109,7 +110,7 @@ paths:
   /api/auth/logout:
     post:
       tags:
-        - Auth
+      - Auth
       summary: Logout current session
       responses:
         '204':
@@ -117,7 +118,7 @@ paths:
   /api/auth/sessions:
     get:
       tags:
-        - Auth
+      - Auth
       summary: List active sessions
       responses:
         '200':
@@ -125,7 +126,7 @@ paths:
   /api/auth/sessions/revoke:
     post:
       tags:
-        - Auth
+      - Auth
       summary: Revoke a specific session
       requestBody:
         required: true
@@ -134,7 +135,7 @@ paths:
             schema:
               type: object
               required:
-                - session_id
+              - session_id
               properties:
                 session_id:
                   type: string
@@ -144,7 +145,7 @@ paths:
   /api/auth/sessions/revoke-all:
     post:
       tags:
-        - Auth
+      - Auth
       summary: Revoke all active sessions
       responses:
         '204':
@@ -152,7 +153,7 @@ paths:
   /api/auth/change-password:
     post:
       tags:
-        - Auth
+      - Auth
       summary: Change user password
       requestBody:
         required: true
@@ -161,8 +162,8 @@ paths:
             schema:
               type: object
               required:
-                - current_password
-                - new_password
+              - current_password
+              - new_password
               properties:
                 current_password:
                   type: string
@@ -174,7 +175,7 @@ paths:
   /api/auth/hierarchy:
     get:
       tags:
-        - Auth
+      - Auth
       summary: Get permission hierarchy
       responses:
         '200':
@@ -182,7 +183,7 @@ paths:
   /api/auth/permissions:
     get:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: List all permissions
       responses:
         '200':
@@ -191,49 +192,52 @@ paths:
   /api/auth/admin/users:
     get:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: List users
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:users`]**'
   /api/auth/admin/users/{id}:
     get:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Get user details
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:users`]**'
     delete:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Delete user
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '204':
           description: OK
+      description: '**[Requires: `manage:users`]**'
   /api/auth/admin/users/{id}/role:
     put:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Update user role
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -241,24 +245,25 @@ paths:
             schema:
               type: object
               required:
-                - role_id
+              - role_id
               properties:
                 role_id:
                   type: integer
       responses:
         '200':
           description: OK
+      description: '**[Requires: `manage:users`]**'
   /api/auth/admin/users/{id}/reset-password:
     post:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Admin reset password
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -266,7 +271,7 @@ paths:
             schema:
               type: object
               required:
-                - new_password
+              - new_password
               properties:
                 new_password:
                   type: string
@@ -274,17 +279,19 @@ paths:
         '200':
           description: OK
 
+      description: '**[Requires: `manage:users`]**'
   /api/auth/admin/roles:
     get:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: List roles
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:roles`]**'
     post:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Create role
       requestBody:
         required: true
@@ -293,7 +300,7 @@ paths:
             schema:
               type: object
               required:
-                - name
+              - name
               properties:
                 name:
                   type: string
@@ -302,17 +309,18 @@ paths:
       responses:
         '201':
           description: OK
+      description: '**[Requires: `manage:roles`]**'
   /api/auth/admin/roles/{id}:
     put:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Update role
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -320,7 +328,7 @@ paths:
             schema:
               type: object
               required:
-                - name
+              - name
               properties:
                 name:
                   type: string
@@ -329,30 +337,32 @@ paths:
       responses:
         '200':
           description: OK
+      description: '**[Requires: `manage:roles`]**'
     delete:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Delete role
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '204':
           description: OK
+      description: '**[Requires: `manage:roles`]**'
   /api/auth/admin/roles/{id}/permissions:
     post:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Assign permissions to role
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -360,7 +370,7 @@ paths:
             schema:
               type: object
               required:
-                - permission_ids
+              - permission_ids
               properties:
                 permission_ids:
                   type: array
@@ -370,17 +380,19 @@ paths:
         '200':
           description: OK
 
+      description: '**[Requires: `manage:roles`]**'
   /api/auth/admin/keys:
     get:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: List API keys
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:keys`]**'
     post:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Create new API key
       requestBody:
         required: true
@@ -389,7 +401,7 @@ paths:
             schema:
               type: object
               required:
-                - name
+              - name
               properties:
                 name:
                   type: string
@@ -402,17 +414,18 @@ paths:
       responses:
         '201':
           description: OK
+      description: '**[Requires: `manage:keys`]**'
   /api/auth/admin/keys/{id}:
     put:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Update API key
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -420,7 +433,7 @@ paths:
             schema:
               type: object
               required:
-                - owner_name
+              - owner_name
               properties:
                 owner_name:
                   type: string
@@ -429,30 +442,32 @@ paths:
       responses:
         '200':
           description: OK
+      description: '**[Requires: `manage:keys`]**'
     delete:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Delete API key
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '204':
           description: OK
+      description: '**[Requires: `manage:keys`]**'
   /api/auth/admin/keys/{id}/permissions:
     put:
       tags:
-        - Auth Admin
+      - Auth Admin
       summary: Update key permissions
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -460,7 +475,7 @@ paths:
             schema:
               type: object
               required:
-                - permission_ids
+              - permission_ids
               properties:
                 permission_ids:
                   type: array
@@ -470,10 +485,11 @@ paths:
         '200':
           description: OK
 
+      description: '**[Requires: `manage:keys`]**'
   /api/auth/health:
     get:
       tags:
-        - Health
+      - Health
       summary: Auth Service Health
       security: []
       responses:
@@ -486,10 +502,10 @@ paths:
   /ingest/event:
     post:
       tags:
-        - Ingestor
+      - Ingestor
       summary: Ingest an event (camera, scale, or other)
       security:
-        - apiKeyAuth: []
+      - apiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -526,10 +542,11 @@ paths:
                   trigger_url:
                     type: string
 
+      description: '**[Requires: `ingest:events`]**'
   /ingest/health:
     get:
       tags:
-        - Health
+      - Health
       summary: Ingestor Service Health
       security: []
       responses:
@@ -542,14 +559,15 @@ paths:
   /api/v1/events:
     get:
       tags:
-        - Core Events
+      - Core Events
       summary: List events
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:events` or `read:events:all`]**'
     post:
       tags:
-        - Core Events
+      - Core Events
       summary: Create new event
       requestBody:
         required: true
@@ -558,10 +576,10 @@ paths:
             schema:
               type: object
               required:
-                - event_type_id
-                - gate_id
-                - source_id
-                - data
+              - event_type_id
+              - gate_id
+              - source_id
+              - data
               properties:
                 event_type_id:
                   type: string
@@ -585,45 +603,49 @@ paths:
       responses:
         '201':
           description: OK
+      description: '**[Requires: `create:events` or `create:events:all`]**'
   /api/v1/events/{id}:
     get:
       tags:
-        - Core Events
+      - Core Events
       summary: Get event details
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:events` or `read:events:all`]**'
     delete:
       tags:
-        - Core Events
+      - Core Events
       summary: Delete event
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
 
+      description: '**[Requires: `delete:events` or `delete:events:all`]**'
   /api/v1/transactions:
     get:
       tags:
-        - Core Transactions
+      - Core Transactions
       summary: List transactions
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:transactions` or `read:transactions:all`]**'
     post:
       tags:
-        - Core Transactions
+      - Core Transactions
       summary: Create transaction
       requestBody:
         required: true
@@ -632,37 +654,39 @@ paths:
             schema:
               type: object
               required:
-                - gate_id
+              - gate_id
               properties:
                 gate_id:
                   type: string
       responses:
         '201':
           description: OK
+      description: '**[Requires: `create:transactions` or `create:transactions:all`]**'
   /api/v1/transactions/{id}:
     get:
       tags:
-        - Core Transactions
+      - Core Transactions
       summary: Get transaction details
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:transactions` or `read:transactions:all`]**'
     put:
       tags:
-        - Core Transactions
+      - Core Transactions
       summary: Update transaction
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -677,24 +701,26 @@ paths:
       responses:
         '200':
           description: OK
+      description: '**[Requires: `update:transactions` or `update:transactions:all`]**'
     delete:
       tags:
-        - Core Transactions
+      - Core Transactions
       summary: Delete transaction
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
 
+      description: '**[Requires: `delete:transactions` or `delete:transactions:all`]**'
   /api/v1/configs/device:
     post:
       tags:
-        - Core Configuration
+      - Core Configuration
       summary: Create device configuration mapping
       requestBody:
         required: true
@@ -703,11 +729,11 @@ paths:
             schema:
               type: object
               required:
-                - source_id
-                - event_type_id
-                - gate_id
-                - data_mapping
-                - data_type
+              - source_id
+              - event_type_id
+              - gate_id
+              - data_mapping
+              - data_type
               properties:
                 source_id:
                   type: string
@@ -727,59 +753,64 @@ paths:
       responses:
         '201':
           description: OK
+      description: '**[Requires: `create:configs` or `create:configs:all`]**'
   /api/v1/configs/device/{source_id}:
     get:
       tags:
-        - Core Configuration
+      - Core Configuration
       summary: Get config by source device ID
       parameters:
-        - name: source_id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:configs` or `read:configs:all`]**'
   /api/v1/configs/device/{id}:
     put:
       tags:
-        - Core Configuration
+      - Core Configuration
       summary: Update device config
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
+      description: '**[Requires: `update:configs` or `update:configs:all`]**'
     delete:
       tags:
-        - Core Configuration
+      - Core Configuration
       summary: Delete device config
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
 
+      description: '**[Requires: `delete:configs` or `delete:configs:all`]**'
   /api/v1/types:
     get:
       tags:
-        - Core Types
+      - Core Types
       summary: List event types schemas
       responses:
         '200':
           description: OK
+      description: '**[Requires: `read:types` or `read:types:all`]**'
     post:
       tags:
-        - Core Types
+      - Core Types
       summary: Create new event type schema
       requestBody:
         required: true
@@ -788,9 +819,9 @@ paths:
             schema:
               type: object
               required:
-                - code
-                - name
-                - fields
+              - code
+              - name
+              - fields
               properties:
                 code:
                   type: string
@@ -803,25 +834,27 @@ paths:
       responses:
         '201':
           description: OK
+      description: '**[Requires: `create:types` or `create:types:all`]**'
   /api/v1/types/{id}:
     get:
       tags:
-        - Core Types
+      - Core Types
       summary: Get event type details
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
 
+      description: '**[Requires: `read:types` or `read:types:all`]**'
   /api/v1/health:
     get:
       tags:
-        - Health
+      - Health
       summary: Core Service Health
       security: []
       responses:
@@ -835,7 +868,7 @@ paths:
 
     post:
       tags:
-        - Puller
+      - Puller
       summary: Trigger data pull (Internal)
       requestBody:
         required: true
@@ -844,10 +877,10 @@ paths:
             schema:
               type: object
               required:
-                - trigger_url
-                - transaction_id
-                - gate_id
-                - source_id
+              - trigger_url
+              - transaction_id
+              - gate_id
+              - source_id
               properties:
                 trigger_url:
                   type: string
@@ -865,9 +898,153 @@ paths:
   /puller/health:
     get:
       tags:
-        - Health
+      - Health
       summary: Puller Service Health
       security: []
+      responses:
+        '200':
+          description: OK
+  /api/auth/audit:
+    get:
+      tags:
+      - Auth Admin
+      summary: View the system audit log
+      description: '**[Requires: `read:audit`]**'
+      responses:
+        '200':
+          description: OK
+  /api/v1/gates:
+    get:
+      tags:
+      - Core Configuration
+      summary: List gates
+      description: '**[Requires: `read:gates` or `read:gates:all`]**'
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+      - Core Configuration
+      summary: Create gate
+      description: '**[Requires: `create:gates` or `create:gates:all`]**'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gate_id:
+                  type: string
+                name:
+                  type: string
+                location:
+                  type: string
+                status:
+                  type: string
+      responses:
+        '201':
+          description: OK
+  /api/v1/gates/{id}:
+    get:
+      tags:
+      - Core Configuration
+      summary: Get gate details
+      description: '**[Requires: `read:gates` or `read:gates:all`]**'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+    put:
+      tags:
+      - Core Configuration
+      summary: Update gate
+      description: '**[Requires: `update:gates` or `update:gates:all`]**'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+      - Core Configuration
+      summary: Delete gate
+      description: '**[Requires: `delete:gates` or `delete:gates:all`]**'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+  /api/v1/profiles:
+    get:
+      tags:
+      - Core Configuration
+      summary: List user profiles
+      description: '**[Requires: `read:profiles` or `read:profiles:all`]**'
+      responses:
+        '200':
+          description: OK
+    post:
+      tags:
+      - Core Configuration
+      summary: Create user profile
+      description: '**[Requires: `create:profiles` or `create:profiles:all`]**'
+      responses:
+        '201':
+          description: OK
+  /api/v1/profiles/{id}:
+    get:
+      tags:
+      - Core Configuration
+      summary: Get profile details
+      description: '**[Requires: `read:profiles` or `read:profiles:all`]**'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+    put:
+      tags:
+      - Core Configuration
+      summary: Update profile
+      description: '**[Requires: `update:profiles` or `update:profiles:all`]**'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+      - Core Configuration
+      summary: Delete profile
+      description: '**[Requires: `delete:profiles` or `delete:profiles:all`]**'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
