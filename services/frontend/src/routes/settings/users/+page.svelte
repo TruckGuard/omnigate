@@ -16,6 +16,7 @@
   import { Input } from '$lib/components/ui/input/index.js';
   import { api } from '$lib/api.js';
   import { timeAgo } from '$lib/utils.js';
+  import PermGuard from '$lib/components/PermGuard.svelte';
   import type { AuthRole, AuthUser, UserProfile } from '$lib/types.js';
   import { UserCog, Trash2, KeyRound, UserPlus } from 'lucide-svelte';
 
@@ -117,9 +118,11 @@
 
 <TopBar crumbs={['OmniGate', 'Користувачі']} title="Користувачі">
   {#snippet actions()}
-    <Button size="sm" onclick={() => (createOpen = true)}>
-      <UserPlus size={14} /> Новий користувач
-    </Button>
+    <PermGuard permission="manage:users">
+      <Button size="sm" onclick={() => (createOpen = true)}>
+        <UserPlus size={14} /> Новий користувач
+      </Button>
+    </PermGuard>
   {/snippet}
 </TopBar>
 
@@ -154,20 +157,22 @@
               {user.last_login ? timeAgo(user.last_login) : 'Ніколи'}
             </TableCell>
             <TableCell>
-              <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon-sm" title="Редагувати роль"
-                  onclick={() => { selected = user; editRoleId = String(user.role_id); roleOpen = true; }}>
-                  <UserCog size={14} />
-                </Button>
-                <Button variant="ghost" size="icon-sm" title="Скинути пароль"
-                  onclick={() => { selected = user; newPassword = ''; pwOpen = true; }}>
-                  <KeyRound size={14} />
-                </Button>
-                <Button variant="ghost" size="icon-sm" title="Видалити" class="hover:text-destructive"
-                  onclick={() => { selected = user; deleteOpen = true; }}>
-                  <Trash2 size={14} />
-                </Button>
-              </div>
+              <PermGuard permission="manage:users">
+                <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon-sm" title="Редагувати роль"
+                    onclick={() => { selected = user; editRoleId = String(user.role_id); roleOpen = true; }}>
+                    <UserCog size={14} />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" title="Скинути пароль"
+                    onclick={() => { selected = user; newPassword = ''; pwOpen = true; }}>
+                    <KeyRound size={14} />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" title="Видалити" class="hover:text-destructive"
+                    onclick={() => { selected = user; deleteOpen = true; }}>
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              </PermGuard>
             </TableCell>
           </TableRow>
         {/each}

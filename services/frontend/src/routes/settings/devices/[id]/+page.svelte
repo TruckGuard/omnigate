@@ -210,12 +210,12 @@
 >
   {#snippet actions()}
     {#if !isNew}
-      <PermGuard permission="manage:keys">
+      <PermGuard permission="manage:configs">
         <Button variant="destructive" size="sm" onclick={() => (confirmDelete = true)}>Видалити</Button>
       </PermGuard>
     {/if}
     <Button variant="outline" size="sm" onclick={() => goto('/settings/devices')}>Скасувати</Button>
-    <PermGuard permission="manage:keys">
+    <PermGuard permission="manage:configs">
       <Button size="sm" onclick={handleSave} disabled={saving}>
         {saving ? 'Збереження…' : 'Зберегти'}
       </Button>

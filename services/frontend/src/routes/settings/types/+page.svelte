@@ -17,6 +17,7 @@
   } from '$lib/components/ui/select/index.js';
   import { api } from '$lib/api.js';
   import { fmtDate } from '$lib/utils.js';
+  import PermGuard from '$lib/components/PermGuard.svelte';
   import type { EventType } from '$lib/types.js';
   import { Plus, Trash2, ChevronDown, ChevronRight, Pencil } from 'lucide-svelte';
 
@@ -121,9 +122,11 @@
 
 <TopBar crumbs={['OmniGate', 'Типи подій']} title="Типи подій">
   {#snippet actions()}
-    <Button size="sm" onclick={openCreate}>
-      <Plus size={14} /> Новий тип
-    </Button>
+    <PermGuard permission="manage:types">
+      <Button size="sm" onclick={openCreate}>
+        <Plus size={14} /> Новий тип
+      </Button>
+    </PermGuard>
   {/snippet}
 </TopBar>
 
@@ -160,11 +163,13 @@
             <TableCell class="text-sm text-muted-foreground">{Object.keys(t.fields).length}</TableCell>
             <TableCell class="text-sm text-muted-foreground">{fmtDate(t.created_at)}</TableCell>
             <TableCell>
-              <div role="presentation" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon-sm" onclick={() => openEdit(t)}>
-                  <Pencil size={13} />
-                </Button>
-              </div>
+              <PermGuard permission="manage:types">
+                <div role="presentation" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon-sm" onclick={() => openEdit(t)}>
+                    <Pencil size={13} />
+                  </Button>
+                </div>
+              </PermGuard>
             </TableCell>
           </TableRow>
           {#if detailId === t.id}

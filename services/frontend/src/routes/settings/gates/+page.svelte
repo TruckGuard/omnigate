@@ -15,6 +15,7 @@
     DialogFooter, DialogDescription,
   } from '$lib/components/ui/dialog/index.js';
   import { api } from '$lib/api.js';
+  import PermGuard from '$lib/components/PermGuard.svelte';
   import type { Gate } from '$lib/types.js';
   import { Plus, Pencil, Trash2 } from 'lucide-svelte';
 
@@ -92,9 +93,11 @@
 
 <TopBar crumbs={['OmniGate', 'Шлагбауми']} title="Шлагбауми">
   {#snippet actions()}
-    <Button size="sm" onclick={openCreate}>
-      <Plus size={14} /> Новий шлагбаум
-    </Button>
+    <PermGuard permission="manage:gates">
+      <Button size="sm" onclick={openCreate}>
+        <Plus size={14} /> Новий шлагбаум
+      </Button>
+    </PermGuard>
   {/snippet}
 </TopBar>
 
@@ -122,15 +125,17 @@
               </Badge>
             </TableCell>
             <TableCell>
-              <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon-sm" onclick={() => openEdit(g)}>
-                  <Pencil size={13} />
-                </Button>
-                <Button variant="ghost" size="icon-sm" class="hover:text-destructive"
-                  onclick={() => { selected = g; deleteOpen = true; }}>
-                  <Trash2 size={13} />
-                </Button>
-              </div>
+              <PermGuard permission="manage:gates">
+                <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon-sm" onclick={() => openEdit(g)}>
+                    <Pencil size={13} />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" class="hover:text-destructive"
+                    onclick={() => { selected = g; deleteOpen = true; }}>
+                    <Trash2 size={13} />
+                  </Button>
+                </div>
+              </PermGuard>
             </TableCell>
           </TableRow>
         {/each}

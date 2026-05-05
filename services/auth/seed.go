@@ -43,6 +43,8 @@ func seedData() {
 	perms = append(perms, genCRUDPerms("transactions", "Transactions", "core", true)...)
 	perms = append(perms, genCRUDPerms("configs", "Device Configs", "core", true)...)
 	perms = append(perms, genCRUDPerms("types", "Event Types", "core", true)...)
+	perms = append(perms, genCRUDPerms("gates", "Gates", "core", true)...)
+	perms = append(perms, genCRUDPerms("profiles", "User Profiles", "core", true)...)
 
 	for _, p := range perms {
 		repository.DB.Save(&p)
@@ -58,6 +60,7 @@ func seedData() {
 	repository.DB.FirstOrCreate(&managerRole, models.Role{Name: "manager", Description: "Manager (data editing)"})
 	managerPermIDs := []string{
 		"manage:users", "manage:events", "manage:transactions", "manage:configs", "manage:types",
+		"manage:gates", "manage:profiles",
 		"read:roles", "read:keys", "read:audit",
 	}
 	var managerPerms []models.Permission
@@ -70,7 +73,7 @@ func seedData() {
 	operatorPermIDs := []string{
 		"read:events", "create:events", "manage:events",
 		"read:transactions", "create:transactions", "manage:transactions",
-		"read:configs", "read:types",
+		"read:configs", "read:types", "read:gates",
 	}
 	var operatorPerms []models.Permission
 	repository.DB.Where("id IN ?", operatorPermIDs).Find(&operatorPerms)
@@ -171,6 +174,12 @@ func seedData() {
 		// Core Service: TYPES
 		{Method: "CRUD", PathPattern: `^/api/v1/types.*`, RequiredPermission: "types,types:all", Description: "Manage event types"},
 
+		// Core Service: GATES
+		{Method: "CRUD", PathPattern: `^/api/v1/gates.*`, RequiredPermission: "gates,gates:all", Description: "Manage gates"},
+
+		// Core Service: PROFILES
+		{Method: "CRUD", PathPattern: `^/api/v1/profiles.*`, RequiredPermission: "profiles,profiles:all", Description: "Manage user profiles"},
+
 		// Audit
 		{Method: "GET", PathPattern: `^/api/auth/audit.*`, RequiredPermission: "read:audit", Description: "Audit log"},
 	}
@@ -217,6 +226,16 @@ func seedData() {
 		{ParentID: "manage:types", ChildID: "create:types"},
 		{ParentID: "manage:types", ChildID: "update:types"},
 		{ParentID: "manage:types", ChildID: "delete:types"},
+
+		{ParentID: "manage:gates", ChildID: "read:gates"},
+		{ParentID: "manage:gates", ChildID: "create:gates"},
+		{ParentID: "manage:gates", ChildID: "update:gates"},
+		{ParentID: "manage:gates", ChildID: "delete:gates"},
+
+		{ParentID: "manage:profiles", ChildID: "read:profiles"},
+		{ParentID: "manage:profiles", ChildID: "create:profiles"},
+		{ParentID: "manage:profiles", ChildID: "update:profiles"},
+		{ParentID: "manage:profiles", ChildID: "delete:profiles"},
 	}
 
 	for _, h := range hierarchy {

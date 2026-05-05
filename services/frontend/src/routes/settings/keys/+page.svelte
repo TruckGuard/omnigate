@@ -19,6 +19,7 @@
     Select, SelectContent, SelectItem, SelectTrigger,
   } from '$lib/components/ui/select/index.js';
   import { Plus, Trash2, KeyRound, ShieldCheck } from 'lucide-svelte';
+  import PermGuard from '$lib/components/PermGuard.svelte';
 
   let keys        = $state<APIKey[]>([]);
   let gates       = $state<Gate[]>([]);
@@ -170,9 +171,11 @@
 
 <TopBar crumbs={['OmniGate', 'API ключі']} title="API ключі">
   {#snippet actions()}
-    <Button size="sm" onclick={openCreate}>
-      <Plus size={14} /> Новий ключ
-    </Button>
+    <PermGuard permission="manage:keys">
+      <Button size="sm" onclick={openCreate}>
+        <Plus size={14} /> Новий ключ
+      </Button>
+    </PermGuard>
   {/snippet}
 </TopBar>
 
@@ -213,17 +216,19 @@
             </TableCell>
             <TableCell class="text-xs text-muted-foreground">{fmtDate(k.created_at)}</TableCell>
             <TableCell>
-              <div class="flex gap-1">
-                <Button variant="ghost" size="icon-sm" title="Дозволи" onclick={() => openPerms(k)}>
-                  <ShieldCheck size={14} />
-                </Button>
-                <Button variant="ghost" size="icon-sm" title="Редагувати" onclick={() => openEdit(k)}>
-                  <KeyRound size={14} />
-                </Button>
-                <Button variant="ghost" size="icon-sm" title="Видалити" class="hover:text-destructive" onclick={() => openDelete(k)}>
-                  <Trash2 size={14} />
-                </Button>
-              </div>
+              <PermGuard permission="manage:keys">
+                <div class="flex gap-1">
+                  <Button variant="ghost" size="icon-sm" title="Дозволи" onclick={() => openPerms(k)}>
+                    <ShieldCheck size={14} />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" title="Редагувати" onclick={() => openEdit(k)}>
+                    <KeyRound size={14} />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" title="Видалити" class="hover:text-destructive" onclick={() => openDelete(k)}>
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              </PermGuard>
             </TableCell>
           </TableRow>
         {/each}
@@ -267,9 +272,11 @@
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (createOpen = false)}>Скасувати</Button>
-      <Button onclick={handleCreate} disabled={saving || !newName}>
-        {saving ? 'Створення…' : 'Створити ключ'}
-      </Button>
+      <PermGuard permission="manage:keys">
+        <Button onclick={handleCreate} disabled={saving || !newName}>
+          {saving ? 'Створення…' : 'Створити ключ'}
+        </Button>
+      </PermGuard>
     </DialogFooter>
   </DialogContent>
 </Dialog>
@@ -319,9 +326,11 @@
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (editOpen = false)}>Скасувати</Button>
-      <Button onclick={handleEdit} disabled={saving}>
-        {saving ? 'Збереження…' : 'Зберегти'}
-      </Button>
+      <PermGuard permission="manage:keys">
+        <Button onclick={handleEdit} disabled={saving}>
+          {saving ? 'Збереження…' : 'Зберегти'}
+        </Button>
+      </PermGuard>
     </DialogFooter>
   </DialogContent>
 </Dialog>
@@ -346,9 +355,11 @@
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (permsOpen = false)}>Скасувати</Button>
-      <Button onclick={handlePerms} disabled={saving}>
-        {saving ? 'Збереження…' : 'Оновити дозволи'}
-      </Button>
+      <PermGuard permission="manage:keys">
+        <Button onclick={handlePerms} disabled={saving}>
+          {saving ? 'Збереження…' : 'Оновити дозволи'}
+        </Button>
+      </PermGuard>
     </DialogFooter>
   </DialogContent>
 </Dialog>
@@ -364,7 +375,9 @@
     </DialogHeader>
     <DialogFooter>
       <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
-      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
+      <PermGuard permission="manage:keys">
+        <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
+      </PermGuard>
     </DialogFooter>
   </DialogContent>
 </Dialog>

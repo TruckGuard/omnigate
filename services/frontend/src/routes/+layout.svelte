@@ -26,8 +26,8 @@
     { id: 'transactions', href: '/',                 label: 'Транзакції',   icon: LayoutGrid, section: 'Операції' },
     { id: 'devices',      href: '/settings/devices', label: 'Пристрої',     icon: Cpu,        section: 'Операції' },
     { id: 'keys',         href: '/settings/keys',    label: 'API Ключі',    icon: KeySquare,  section: 'Операції',      permission: 'read:keys' },
-    { id: 'types',        href: '/settings/types',   label: 'Типи подій',   icon: Layers,     section: 'Конфігурація' },
-    { id: 'gates',        href: '/settings/gates',   label: 'Шлагбауми',    icon: GitFork,    section: 'Конфігурація' },
+    { id: 'types',        href: '/settings/types',   label: 'Типи подій',   icon: Layers,     section: 'Конфігурація', permission: 'read:types' },
+    { id: 'gates',        href: '/settings/gates',   label: 'Шлагбауми',    icon: GitFork,    section: 'Конфігурація', permission: 'read:gates' },
     { id: 'users',        href: '/settings/users',   label: 'Користувачі',  icon: Users,      section: 'Доступ',        permission: 'manage:users' },
     { id: 'roles',        href: '/settings/roles',   label: 'Ролі',         icon: KeyRound,   section: 'Доступ',        permission: 'read:roles' },
   ];

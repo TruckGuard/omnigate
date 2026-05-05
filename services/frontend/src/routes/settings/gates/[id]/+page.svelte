@@ -13,6 +13,7 @@
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '$lib/components/ui/table/index.js';
   import { api } from '$lib/api.js';
   import { fmtDateTime, fmtDate } from '$lib/utils.js';
+  import PermGuard from '$lib/components/PermGuard.svelte';
   import type { Gate, GateSettings, GateStats } from '$lib/types.js';
   import { ChevronLeft, ExternalLink } from 'lucide-svelte';
 
@@ -139,9 +140,11 @@
             <Input type="number" bind:value={maxEvents} min={1} max={10000} />
           </Field>
           <div class="flex justify-end pt-1">
-            <Button size="sm" onclick={saveSettings} disabled={saving}>
-              {saving ? 'Збереження…' : 'Зберегти налаштування'}
-            </Button>
+            <PermGuard permission="manage:gates">
+              <Button size="sm" onclick={saveSettings} disabled={saving}>
+                {saving ? 'Збереження…' : 'Зберегти налаштування'}
+              </Button>
+            </PermGuard>
           </div>
         </CardContent>
       </Card>

@@ -16,6 +16,7 @@
   } from '$lib/components/ui/select/index.js';
   import { api } from '$lib/api.js';
   import { fmtDateTime } from '$lib/utils.js';
+  import PermGuard from '$lib/components/PermGuard.svelte';
   import type { AuthUser, AuthRole, UserProfile, Gate } from '$lib/types.js';
   import { ChevronLeft } from 'lucide-svelte';
 
@@ -159,9 +160,11 @@
             </Select>
           </Field>
           <div class="flex justify-end">
-            <Button size="sm" onclick={saveRole} disabled={savingRole}>
-              {savingRole ? 'Збереження…' : 'Зберегти акаунт'}
-            </Button>
+            <PermGuard permission="manage:users">
+              <Button size="sm" onclick={saveRole} disabled={savingRole}>
+                {savingRole ? 'Збереження…' : 'Зберегти акаунт'}
+              </Button>
+            </PermGuard>
           </div>
         </CardContent>
       </Card>
@@ -209,9 +212,11 @@
             <Textarea bind:value={fNotes} rows={2} placeholder="Необов'язкові нотатки…" />
           </Field>
           <div class="flex justify-end">
-            <Button size="sm" onclick={saveProfile} disabled={savingProfile}>
-              {savingProfile ? 'Збереження…' : profile ? 'Зберегти профіль' : 'Створити профіль'}
-            </Button>
+            <PermGuard permission="manage:profiles">
+              <Button size="sm" onclick={saveProfile} disabled={savingProfile}>
+                {savingProfile ? 'Збереження…' : profile ? 'Зберегти профіль' : 'Створити профіль'}
+              </Button>
+            </PermGuard>
           </div>
         </CardContent>
       </Card>
