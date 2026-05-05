@@ -32,20 +32,22 @@ class CoreClient:
         data: Dict,
         raw_data_key: str,
         image_keys: list = None,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        raw_payload: str = "",
     ) -> Dict:
         """Create an event in CORE service."""
         url = f"{self.base_url}/events"
-        
+
         payload = {
             "event_type_id": event_type_id,
             "gate_id": gate_id,
             "source_id": source_id,
             "data": data,
+            "raw_payload": raw_payload,
             "raw_data_key": raw_data_key,
             "image_keys": image_keys or [],
         }
-        
+
         if transaction_id:
             payload["transaction_id"] = transaction_id
         

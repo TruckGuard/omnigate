@@ -49,7 +49,7 @@ class JsonFormatter(logging.Formatter):
         dt = datetime.fromtimestamp(record.created)
         return dt.isoformat() + "Z"
 
-def setup_logging(service_name="truckguard-worker"):
+def setup_logging(service_name="omnigate-puller"):
     # Clear existing handlers from root logger to avoid duplicates
     root = logging.getLogger()
     if root.hasHandlers():

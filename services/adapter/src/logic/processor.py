@@ -52,8 +52,8 @@ class EventProcessor:
             logger.warning(f"Config for {source_id} is disabled, skipping")
             return
         
-        # 2. Parse RAW payload
-        payload = event.get("payload", "{}")
+        # 2. Parse RAW payload (may be JSON, XML, or plain text from any device)
+        payload = event.get("payload") or ""
         parsed_data = self._parse_payload(payload, config.get("data_type", "json"))
         
         # 3. Transform data using mapping
@@ -79,6 +79,7 @@ class EventProcessor:
             gate_id=gate_id,
             source_id=source_id,
             data=transformed_data,
+            raw_payload=payload,
             raw_data_key=event.get("raw_storage_key", ""),
             image_keys=event.get("image_keys", []),
             transaction_id=event.get("transaction_id"),  # From Puller flow
@@ -109,11 +110,16 @@ class EventProcessor:
         return self.config_cache.get(source_id)
     
     def _parse_payload(self, payload: str, data_type: str) -> Dict:
-        """Parse payload based on data type."""
-        if data_type == "xml":
-            return xmltodict.parse(payload)
-        else:
+        """Parse payload based on data type. Returns {} for empty or unparseable input."""
+        if not payload:
+            return {}
+        try:
+            if data_type == "xml":
+                return xmltodict.parse(payload)
             return json.loads(payload)
+        except Exception as e:
+            logger.warning(f"Failed to parse payload as {data_type}, storing raw", extra={"error": str(e)})
+            return {"raw": payload}
     
     def _transform_data(self, raw_data: Dict, mapping: Dict) -> Dict:
         """Transform raw data using JSONPath mapping."""

@@ -20,6 +20,7 @@ type CreateEventRequest struct {
 	GateID        string         `json:"gate_id" binding:"required"`
 	SourceID      string         `json:"source_id" binding:"required"`
 	Data          datatypes.JSON `json:"data" binding:"required"`
+	RawPayload    string         `json:"raw_payload"`
 	RawDataKey    string         `json:"raw_data_key"`
 	ImageKeys     []string       `json:"image_keys"`
 	TransactionID *uuid.UUID     `json:"transaction_id"` // Optional, from Puller
@@ -78,6 +79,7 @@ func HandleCreateEvent(c *gin.Context) {
 		GateID:        req.GateID,
 		SourceID:      req.SourceID,
 		Data:          req.Data,
+		RawPayload:    req.RawPayload,
 		RawDataKey:    req.RawDataKey,
 		ImageKeys:     datatypes.JSON(imgBytes),
 	}

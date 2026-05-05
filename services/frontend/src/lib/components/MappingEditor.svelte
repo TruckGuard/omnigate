@@ -52,11 +52,14 @@
     rows = rows.filter((_, idx) => idx !== i);
   }
 
-  const rawDataPreview = $derived.by(() => {
-    if (!rawEvent) return null;
-    const d = rawEvent.data;
-    if (d && typeof d === 'object' && Object.keys(d).length > 0) return d as Record<string, unknown>;
-    return null;
+  const rawDataPreview = $derived.by((): Record<string, unknown> | string | null => {
+    if (!rawEvent?.raw_payload) return null;
+    try {
+      return JSON.parse(rawEvent.raw_payload) as Record<string, unknown>;
+    } catch {
+      // Not JSON (e.g. XML) — return as-is so the template can render it verbatim.
+      return rawEvent.raw_payload;
+    }
   });
 </script>
 
@@ -120,9 +123,9 @@
       {#if rawOpen}
         <div class="px-3 py-2 bg-muted/30 border-t border-border">
           {#if rawDataPreview}
-            <pre class="text-[11px] font-mono text-foreground overflow-auto max-h-[300px] p-1">{JSON.stringify(rawDataPreview, null, 2)}</pre>
+            <pre class="text-[11px] font-mono text-foreground overflow-auto max-h-[300px] p-1">{typeof rawDataPreview === 'string' ? rawDataPreview : JSON.stringify(rawDataPreview, null, 2)}</pre>
           {:else}
-            <p class="text-[12px] text-muted-foreground">No structured data available for this event.</p>
+            <p class="text-[12px] text-muted-foreground">No raw payload available for this event.</p>
           {/if}
         </div>
       {/if}

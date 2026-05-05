@@ -18,6 +18,7 @@ type Event struct {
 	SourceID      string         `gorm:"type:varchar(100);not null" json:"source_id"`
 	
 	Data          datatypes.JSON `gorm:"type:jsonb;not null" json:"data"`
+	RawPayload    string         `gorm:"type:text" json:"raw_payload"`
 	RawDataKey    string         `gorm:"type:varchar(500)" json:"raw_data_key"`
 	ImageKeys     datatypes.JSON `gorm:"type:text[]" json:"image_keys"`
 	

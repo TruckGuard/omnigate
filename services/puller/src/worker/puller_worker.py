@@ -65,6 +65,7 @@ class PullWorker:
             transaction_id=transaction_id,
             files=files,
             assume_source_id=trigger_source_id,
+            gate_id=gate_id,
         )
 
         logger.info(f"Pull complete for tx {transaction_id}")
