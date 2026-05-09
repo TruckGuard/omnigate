@@ -38,6 +38,7 @@ export interface EventType {
   name: string;
   description: string;
   fields: Record<string, EventTypeField>;
+  searchable_key: string;
   created_at: string;
 }
 
@@ -52,6 +53,9 @@ export interface Event {
   raw_payload?: string;
   raw_data_key: string;
   image_keys: string[] | null;
+  // Матеріалізовані поля (заповнюються BeforeSave хуком на бекенді)
+  type_code: string;
+  searchable_value: string;
   created_at: string;
 }
 
@@ -61,9 +65,15 @@ export interface Transaction {
   gate_id: string;
   is_open: boolean;
   note: string;
+  vehicle_plate: string;
   events?: Event[];
   created_at: string;
   updated_at: string;
+}
+
+export interface VehicleHistoryResponse {
+  plate: string;
+  data: Transaction[];
 }
 
 export interface TransactionListResponse {

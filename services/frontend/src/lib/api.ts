@@ -15,6 +15,7 @@ import type {
   Trigger,
   UserProfile,
   ValidateResponse,
+  VehicleHistoryResponse,
 } from './types.js';
 import { authStore } from './stores/auth.svelte.js';
 
@@ -100,6 +101,8 @@ export const api = {
     update: (id: string, data: { note?: string }) =>
       req<Transaction>(`/api/v1/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => req<void>(`/api/v1/transactions/${id}`, { method: 'DELETE' }),
+    history: (plate: string) =>
+      req<VehicleHistoryResponse>(`/api/v1/transactions/history?plate=${encodeURIComponent(plate)}`),
   },
 
   gates: {
@@ -118,9 +121,9 @@ export const api = {
   types: {
     list: () => req<EventType[]>('/api/v1/types'),
     get: (id: string) => req<EventType>(`/api/v1/types/${id}`),
-    create: (d: { code: string; name: string; description: string; fields: Record<string, unknown> }) =>
+    create: (d: { code: string; name: string; description: string; fields: Record<string, unknown>; searchable_key?: string }) =>
       req<EventType>('/api/v1/types', { method: 'POST', body: JSON.stringify(d) }),
-    update: (id: string, d: { name?: string; description?: string; fields?: Record<string, unknown> }) =>
+    update: (id: string, d: { name?: string; description?: string; fields?: Record<string, unknown>; searchable_key?: string }) =>
       req<EventType>(`/api/v1/types/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
   },
 

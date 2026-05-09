@@ -3,9 +3,11 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/omnigate/services/core/src/models"
+	"gorm.io/gorm"
 )
 
 func CreateTransaction(tx *models.Transaction) *models.Transaction {
@@ -52,7 +54,20 @@ func ListTransactions(f TransactionFilter) ([]models.Transaction, int64) {
 		q = q.Where("gate_id = ?", f.GateID)
 	}
 	if f.Search != "" {
-		q = q.Where("code ILIKE ?", "%"+f.Search+"%")
+		// Шукаємо одночасно:
+		//   1. за кодом транзакції (TRK-…) — для пошуку за ID
+		//   2. за searchable_value в подіях — для пошуку за номером авто
+		// EXISTS зупиняється на першому збігу і використовує GIN-індекс
+		// idx_events_searchable_trgm через оператор ILIKE + pg_trgm.
+		pattern := "%" + strings.ToUpper(f.Search) + "%"
+		q = q.Where(
+			`code ILIKE ? OR EXISTS (
+				SELECT 1 FROM events
+				WHERE events.transaction_id = transactions.id
+				  AND events.searchable_value ILIKE ?
+			)`,
+			"%"+f.Search+"%", pattern,
+		)
 	}
 
 	q.Count(&total)
@@ -97,6 +112,70 @@ func CountEventsForTransaction(txID uuid.UUID) int64 {
 	return count
 }
 
+// FindPastTransactionsFuzzy повертає до limit закритих транзакцій, в яких
+// зафіксований номер авто (searchable_value) є нечітко схожим на detectedPlate.
+//
+// Алгоритм двох етапів — повністю на рівні PostgreSQL:
+//
+//  1. Оператор % (pg_trgm): швидке відсіювання через GIN-індекс.
+//     Відкидає рядки, схожість яких нижча за similarity_threshold (за замовч. 0.3).
+//
+//  2. levenshtein_less_equal(a, b, 2) <= 2 (fuzzystrmatch): точна перевірка.
+//     Зупиняється достроково, якщо відстань вже перевищила поріг — ефективніше
+//     за звичайний levenshtein().
+//
+// Приймає db *gorm.DB явно, щоб caller міг передати DB.WithContext(ctx)
+// для коректного propagation OpenTelemetry-трейсів.
+func FindPastTransactionsFuzzy(db *gorm.DB, detectedPlate string, limit int) ([]models.Transaction, error) {
+	// Нормалізація: та сама логіка, що у BeforeSave хуку моделі Event.
+	plate := strings.ToUpper(strings.ReplaceAll(detectedPlate, " ", ""))
+	if plate == "" || limit <= 0 {
+		return nil, nil
+	}
+
+	// Крок 1: знаходимо унікальні transaction_id через таблицю events.
+	// GIN-індекс idx_events_searchable_trgm обробляє фільтрацію по `%`,
+	// levenshtein_less_equal уточнює результат без повного сканування.
+	var txIDs []uuid.UUID
+	err := db.Raw(`
+		SELECT DISTINCT transaction_id
+		FROM events
+		WHERE searchable_value % ?
+		  AND levenshtein_less_equal(searchable_value, ?, 2) <= 2
+		  AND transaction_id IS NOT NULL
+	`, plate, plate).Scan(&txIDs).Error
+	if err != nil {
+		return nil, fmt.Errorf("FindPastTransactionsFuzzy: query events: %w", err)
+	}
+	if len(txIDs) == 0 {
+		return nil, nil
+	}
+
+	// Крок 2: завантажуємо самі транзакції за знайденими ID.
+	var txs []models.Transaction
+	err = db.Where("id IN ?", txIDs).
+		Preload("Events").
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&txs).Error
+	if err != nil {
+		return nil, fmt.Errorf("FindPastTransactionsFuzzy: query transactions: %w", err)
+	}
+
+	// Перевіряємо статус відкритості через Valkey (батч-запит — один RTT на gate).
+	annotateOpen(txs)
+
+	// Відфільтровуємо відкриті транзакції: нас цікавить тільки завершена історія.
+	closed := txs[:0]
+	for _, tx := range txs {
+		if !tx.IsOpen {
+			closed = append(closed, tx)
+		}
+	}
+
+	return closed, nil
+}
+
 // setOpenStatus checks Valkey for the single given transaction.
 func setOpenStatus(tx *models.Transaction) {
 	key := fmt.Sprintf("tx_active:%s", tx.GateID)
@@ -110,7 +189,6 @@ func annotateOpen(txs []models.Transaction) {
 		return
 	}
 	ctx := context.Background()
-	// Collect unique gate IDs
 	seen := map[string]string{} // gateID → active txID
 	gates := make([]string, 0)
 	for _, tx := range txs {
@@ -119,7 +197,6 @@ func annotateOpen(txs []models.Transaction) {
 			gates = append(gates, tx.GateID)
 		}
 	}
-	// Fetch active tx IDs for each gate in one pass
 	for _, gateID := range gates {
 		key := fmt.Sprintf("tx_active:%s", gateID)
 		if val, err := RDB.Get(ctx, key).Result(); err == nil {

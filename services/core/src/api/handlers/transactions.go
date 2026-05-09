@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/omnigate/services/core/src/logic"
+	"github.com/omnigate/services/core/src/models"
 	"github.com/omnigate/services/core/src/repository"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -120,4 +121,33 @@ func HandleDeleteTransaction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Transaction deleted"})
+}
+
+// HandleVehicleHistory повертає список закритих транзакцій, в яких
+// зафіксований номер авто нечітко збігається з query-параметром ?plate=.
+// Пошук делегується repository.FindPastTransactionsFuzzy (pg_trgm + levenshtein).
+func HandleVehicleHistory(c *gin.Context) {
+	plate := c.Query("plate")
+	if plate == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "plate query parameter is required"})
+		return
+	}
+
+	txs, err := repository.FindPastTransactionsFuzzy(
+		repository.DB.WithContext(c.Request.Context()),
+		plate,
+		10,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if txs == nil {
+		txs = []models.Transaction{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"plate": plate,
+		"data":  txs,
+	})
 }

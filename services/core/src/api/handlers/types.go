@@ -34,10 +34,11 @@ func HandleGetEventType(c *gin.Context) {
 
 func HandleCreateEventType(c *gin.Context) {
 	var req struct {
-		Code        string         `json:"code" binding:"required"`
-		Name        string         `json:"name" binding:"required"`
-		Description string         `json:"description"`
-		Fields      datatypes.JSON `json:"fields" binding:"required"`
+		Code          string         `json:"code" binding:"required"`
+		Name          string         `json:"name" binding:"required"`
+		Description   string         `json:"description"`
+		Fields        datatypes.JSON `json:"fields" binding:"required"`
+		SearchableKey string         `json:"searchable_key"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -46,10 +47,11 @@ func HandleCreateEventType(c *gin.Context) {
 	}
 
 	eventType := &models.EventType{
-		Code:        req.Code,
-		Name:        req.Name,
-		Description: req.Description,
-		Fields:      req.Fields,
+		Code:          req.Code,
+		Name:          req.Name,
+		Description:   req.Description,
+		Fields:        req.Fields,
+		SearchableKey: req.SearchableKey,
 	}
 
 	savedType := repository.CreateEventType(eventType)
@@ -64,16 +66,17 @@ func HandleUpdateEventType(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        *string        `json:"name"`
-		Description *string        `json:"description"`
-		Fields      datatypes.JSON `json:"fields"`
+		Name          *string        `json:"name"`
+		Description   *string        `json:"description"`
+		Fields        datatypes.JSON `json:"fields"`
+		SearchableKey *string        `json:"searchable_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	updates := map[string]interface{}{}
+	updates := map[string]any{}
 	if req.Name != nil {
 		updates["name"] = *req.Name
 	}
@@ -82,6 +85,9 @@ func HandleUpdateEventType(c *gin.Context) {
 	}
 	if req.Fields != nil {
 		updates["fields"] = req.Fields
+	}
+	if req.SearchableKey != nil {
+		updates["searchable_key"] = *req.SearchableKey
 	}
 
 	updated := repository.UpdateEventType(id, updates)

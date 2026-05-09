@@ -55,6 +55,7 @@ func main() {
 
 		// Transactions
 		api.GET("/transactions", handlers.HandleListTransactions)
+		api.GET("/transactions/history", handlers.HandleVehicleHistory)
 		api.GET("/transactions/:id", handlers.HandleGetTransaction)
 		api.POST("/transactions", handlers.HandleCreateTransaction)
 		api.PUT("/transactions/:id", handlers.HandleUpdateTransaction)

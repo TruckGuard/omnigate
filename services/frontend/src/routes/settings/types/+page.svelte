@@ -30,15 +30,20 @@
   let detailId    = $state<string | null>(null);
   let saving      = $state(false);
 
-  let newCode        = $state('');
-  let newName        = $state('');
-  let newDescription = $state('');
-  let newFields      = $state<Array<{ key: string; name: string; description: string; type: string; required: boolean }>>([]);
+  let newCode          = $state('');
+  let newName          = $state('');
+  let newDescription   = $state('');
+  let newSearchableKey = $state('');
+  let newFields        = $state<Array<{ key: string; name: string; description: string; type: string; required: boolean }>>([]);
 
-  let editType        = $state<EventType | null>(null);
-  let editName        = $state('');
-  let editDescription = $state('');
-  let editFields      = $state<Array<{ key: string; name: string; description: string; type: string; required: boolean }>>([]);
+  let editType          = $state<EventType | null>(null);
+  let editName          = $state('');
+  let editDescription   = $state('');
+  let editSearchableKey = $state('');
+  let editFields        = $state<Array<{ key: string; name: string; description: string; type: string; required: boolean }>>([]);
+
+  const newFieldKeys  = $derived(newFields.map(f => f.key).filter(Boolean));
+  const editFieldKeys = $derived(editFields.map(f => f.key).filter(Boolean));
 
   async function load() {
     try { types = await api.types.list(); }
@@ -49,7 +54,7 @@
   $effect(() => { load(); });
 
   function openCreate() {
-    newCode = ''; newName = ''; newDescription = ''; newFields = [];
+    newCode = ''; newName = ''; newDescription = ''; newSearchableKey = ''; newFields = [];
     createOpen = true;
   }
 
@@ -69,7 +74,7 @@
       for (const f of newFields) {
         if (f.key) fields[f.key] = { name: f.name, description: f.description, type: f.type, required: f.required };
       }
-      await api.types.create({ code: newCode.toUpperCase(), name: newName, description: newDescription, fields });
+      await api.types.create({ code: newCode.toUpperCase(), name: newName, description: newDescription, fields, searchable_key: newSearchableKey || undefined });
       toast.success('Тип події створено');
       createOpen = false;
       await load();
@@ -84,6 +89,7 @@
     editType = t;
     editName = t.name;
     editDescription = t.description;
+    editSearchableKey = t.searchable_key ?? '';
     editFields = Object.entries(t.fields).map(([key, f]) => ({
       key, name: f.name, description: f.description, type: f.type, required: f.required,
     }));
@@ -106,7 +112,7 @@
       for (const f of editFields) {
         if (f.key) fields[f.key] = { name: f.name, description: f.description, type: f.type, required: f.required };
       }
-      await api.types.update(editType.id, { name: editName, description: editDescription, fields });
+      await api.types.update(editType.id, { name: editName, description: editDescription, fields, searchable_key: editSearchableKey });
       toast.success('Тип події оновлено');
       editOpen = false;
       await load();
@@ -176,6 +182,12 @@
             <TableRow class="bg-muted/30 hover:bg-muted/30">
               <TableCell colspan={7} class="p-0">
                 <div class="px-6 py-3">
+                  {#if t.searchable_key}
+                    <div class="mb-3 flex items-center gap-2">
+                      <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ключ пошуку</p>
+                      <Badge variant="secondary" class="font-mono text-xs">{t.searchable_key}</Badge>
+                    </div>
+                  {/if}
                   <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Схема полів</p>
                   <div class="space-y-1">
                     {#each Object.entries(t.fields) as [key, field]}
@@ -183,6 +195,7 @@
                         <span class="font-mono w-[200px] shrink-0">{key}</span>
                         <Badge variant="outline" class="text-xs shrink-0">{field.type}</Badge>
                         {#if field.required}<Badge class="text-xs shrink-0">обов'язкове</Badge>{/if}
+                        {#if t.searchable_key === key}<Badge variant="secondary" class="text-xs shrink-0">пошук</Badge>{/if}
                         <span class="text-muted-foreground">{field.name}{field.description ? ` — ${field.description}` : ''}</span>
                       </div>
                     {/each}
@@ -267,6 +280,20 @@
           </div>
         {/each}
       </div>
+
+      <Field label="Ключ пошуку" hint="Поле з JSONB-даних події, яке буде матеріалізоване для нечіткого пошуку (наприклад, номер авто). Залиште порожнім, якщо пошук не потрібен.">
+        <Select type="single" bind:value={newSearchableKey}>
+          <SelectTrigger class="w-[220px] font-mono">
+            {newSearchableKey || '— не визначено —'}
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">— не визначено —</SelectItem>
+            {#each newFieldKeys as k}
+              <SelectItem value={k}>{k}</SelectItem>
+            {/each}
+          </SelectContent>
+        </Select>
+      </Field>
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (createOpen = false)}>Скасувати</Button>
@@ -339,6 +366,20 @@
           </div>
         {/each}
       </div>
+
+      <Field label="Ключ пошуку" hint="Поле з JSONB-даних події, яке буде матеріалізоване для нечіткого пошуку (наприклад, номер авто). Залиште порожнім, якщо пошук не потрібен.">
+        <Select type="single" bind:value={editSearchableKey}>
+          <SelectTrigger class="w-[220px] font-mono">
+            {editSearchableKey || '— не визначено —'}
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">— не визначено —</SelectItem>
+            {#each editFieldKeys as k}
+              <SelectItem value={k}>{k}</SelectItem>
+            {/each}
+          </SelectContent>
+        </Select>
+      </Field>
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (editOpen = false)}>Скасувати</Button>

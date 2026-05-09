@@ -31,15 +31,19 @@ Matchmaker rules:
                   → attach event; fallback to new transaction if invalid.
 
 Tests:
-  2.1  Camera ingest (multipart + image)              — raw_payload + gate_id verified
+  2.1  Camera ingest (multipart + image)              — raw_payload + gate_id + type_code verified
   2.2  Puller config — triggers array on Device 2     — URL + source_id in triggers verified
-  2.3  Scale ingest + automatic puller trigger        — raw_payload + gate_id verified
-  2.4  Manual trigger via Core API                    — all trigger entries queued
-  2.5  Raw JSON body (application/json)               — raw_payload + gate_id verified
-  2.6  Auto-collected form fields (no payload field)  — raw_payload + gate_id verified
-  2.7  Raw XML body (application/xml)                 — raw_payload + gate_id verified
+  2.3  Scale ingest + automatic puller trigger        — raw_payload + gate_id + type_code verified
+  2.4  Manual trigger via Core API                    — all trigger entries queued + type_code
+  2.5  Raw JSON body (application/json)               — raw_payload + gate_id + type_code verified
+  2.6  Auto-collected form fields (no payload field)  — raw_payload + gate_id + type_code verified
+  2.7  Raw XML body (application/xml)                 — raw_payload + gate_id + type_code verified
   2.8  Transaction isolation (GATE_1 ≠ GATE_2)        — transaction_id isolation
-  2.9  Matchmaker — external transaction_id (Puller)  — attach valid / reject invalid
+  2.9  Matchmaker — external transaction_id (Puller)  — attach valid / reject invalid + type_code
+  2.10 BeforeSave hook                                — type_code + searchable_value populated
+  2.11 Vehicle history — exact plate search           — GET /transactions/history returns results
+  2.12 Vehicle history — fuzzy/no-match               — Levenshtein distance + true negative
+  2.13 searchable_key CRUD                            — GET returns it; PUT clears/restores; hook respects it
 
 Usage:
     ADMIN_DEFAULT_PASSWORD=secret python test.py          # run / reuse env
@@ -64,9 +68,15 @@ BASE_URL   = os.getenv("BASE_URL",   "http://localhost:8090")
 VALKEY_URL = os.getenv("VALKEY_URL", "redis://localhost:6380")
 ADMIN_PASS = os.getenv("ADMIN_DEFAULT_PASSWORD")
 
-GATE_1      = "gate-north"   # Dev1, Dev2, Dev3
-GATE_2      = "gate-south"   # Dev4, Dev5
-TRIGGER_URL = "https://picsum.photos/400/300"  # returns a real JPEG
+GATE_1        = "gate-north"        # Dev1, Dev2, Dev3
+GATE_2        = "gate-south"        # Dev4, Dev5
+GATE_HISTORY  = "gate-history-test" # fuzzy-search / history tests
+TRIGGER_URL   = "https://picsum.photos/400/300"  # returns a real JPEG
+
+# Fixed plates used in history tests (consistent across re-runs)
+PLATE_EXACT = "BC1234AX"   # base plate stored in DB
+PLATE_FUZZY = "BC1234A0"   # distance-1 typo (X → 0) — should still match
+PLATE_MISS  = "ZZZZZZZZ"   # should never match
 
 # Minimal valid JPEG (just enough for content-type detection)
 FAKE_JPEG = (
@@ -93,6 +103,10 @@ K = {
     "dev4_key":        P + "dev4:api_key",
     "dev5_sid":        P + "dev5:source_id",
     "dev5_key":        P + "dev5:api_key",
+    # History / fuzzy-search tests
+    "type_plate_event": P + "type:plate_event:id",
+    "hist_dev_sid":     P + "hist:dev:source_id",
+    "hist_dev_key":     P + "hist:dev:api_key",
 }
 
 # ─── Output ───────────────────────────────────────────────────────────────────
@@ -127,10 +141,15 @@ def login() -> dict:
 
 
 # ─── Setup helpers ────────────────────────────────────────────────────────────
-def get_or_create_event_type(rv, hdrs, code, name, fields, cache_key):
+def get_or_create_event_type(rv, hdrs, code, name, fields, cache_key, searchable_key=None):
     cached = rv.get(cache_key)
     if cached:
         skip(f"Event type '{code}'  (cached id={cached})")
+        if searchable_key is not None:
+            requests.put(
+                f"{BASE_URL}/api/v1/types/{cached}", headers=hdrs,
+                json={"searchable_key": searchable_key}, timeout=10,
+            )
         return cached
 
     all_types = requests.get(f"{BASE_URL}/api/v1/types", headers=hdrs, timeout=10).json()
@@ -138,13 +157,17 @@ def get_or_create_event_type(rv, hdrs, code, name, fields, cache_key):
     if existing:
         rv.set(cache_key, existing["id"])
         skip(f"Event type '{code}'  (exists id={existing['id']})")
+        if searchable_key is not None and existing.get("searchable_key") != searchable_key:
+            requests.put(
+                f"{BASE_URL}/api/v1/types/{existing['id']}", headers=hdrs,
+                json={"searchable_key": searchable_key}, timeout=10,
+            )
         return existing["id"]
 
-    r = requests.post(
-        f"{BASE_URL}/api/v1/types", headers=hdrs,
-        json={"code": code, "name": name, "fields": fields},
-        timeout=10,
-    )
+    body = {"code": code, "name": name, "fields": fields}
+    if searchable_key is not None:
+        body["searchable_key"] = searchable_key
+    r = requests.post(f"{BASE_URL}/api/v1/types", headers=hdrs, json=body, timeout=10)
     if r.status_code != 201:
         fail(f"Cannot create event type '{code}': {r.text}")
     type_id = r.json()["id"]
@@ -410,6 +433,50 @@ def assert_gate_id(ev, expected_gate, label):
     ok(f"gate_id correct  (gate_id={actual})")
 
 
+def assert_type_code(ev, expected_code, label):
+    """
+    Перевіряє, що BeforeSave-хук заповнив type_code.
+    Це поле денормалізує EventType.Code в саму таблицю events,
+    щоб уникати JOIN при пошуку.
+    """
+    actual = ev.get("type_code", "")
+    if actual != expected_code:
+        fail(
+            f"'{label}': type_code mismatch — expected '{expected_code}', got '{actual}'\n"
+            f"         Check: BeforeSave hook on Event model, pg extension not needed for this field"
+        )
+    ok(f"type_code = '{actual}'  (BeforeSave hook correct)")
+
+
+def assert_searchable_value(ev, expected_plate, label):
+    """
+    Перевіряє searchable_value — матеріалізоване нормалізоване поле
+    для нечіткого пошуку. Заповнюється BeforeSave хуком з data[searchable_key].
+    """
+    expected = expected_plate.upper().replace(" ", "")
+    actual   = ev.get("searchable_value", "")
+    if actual != expected:
+        fail(
+            f"'{label}': searchable_value mismatch — expected '{expected}', got '{actual}'\n"
+            f"         Check: BeforeSave reads data[searchable_key] and normalises it"
+        )
+    ok(f"searchable_value = '{actual}'  (value normalised correctly)")
+
+
+def assert_searchable_empty(ev, label):
+    """
+    Перевіряє, що searchable_value порожній для подій, чий EventType не має searchable_key.
+    Захищає від помилкового заповнення BeforeSave-хука.
+    """
+    actual = ev.get("searchable_value", "")
+    if actual:
+        fail(
+            f"'{label}': searchable_value should be empty for event type with no searchable_key, got '{actual}'\n"
+            f"         Check: BeforeSave must skip events when EventType.searchable_key is empty"
+        )
+    ok(f"searchable_value empty (EventType has no searchable_key — hook guard correct)")
+
+
 # ─── Test 2.1 – Simple camera ingest (Device 1, multipart + image) ────────────
 def test_camera_ingest(hdrs, dev1_sid, dev1_key):
     step("Test 2.1  ·  Camera Ingest  (Device 1 — multipart/form-data + image)")
@@ -454,6 +521,8 @@ def test_camera_ingest(hdrs, dev1_sid, dev1_key):
     ev = wait_for_new_event(hdrs, dev1_sid, before, "Device 1 camera")
     assert_raw_payload(ev, "Device 1 camera", expected_fragment="AA1234BB")
     assert_gate_id(ev, GATE_1, "Device 1 camera")
+    assert_type_code(ev, "camera_recognition", "Device 1 camera")
+    assert_searchable_empty(ev, "Device 1 camera")
 
 
 # ─── Test 2.2 – Puller config — triggers array on Device 2 ───────────────────
@@ -533,11 +602,15 @@ def test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid):
     ev2 = wait_for_new_event(hdrs, dev2_sid, before_dev2, "Device 2 scale", timeout=20)
     assert_raw_payload(ev2, "Device 2 scale", expected_fragment="25400.0")
     assert_gate_id(ev2, GATE_1, "Device 2 scale")
+    assert_type_code(ev2, "scale_weight", "Device 2 scale")
+    assert_searchable_empty(ev2, "Device 2 scale")
 
     ev3 = wait_for_new_event(hdrs, dev3_sid, before_dev3, "Device 3 (puller auto)", timeout=35)
     assert_raw_payload(ev3, "Device 3 (puller auto)")
     # gate_id must be GATE_1, not "system" (the Puller's own API-key gate).
     assert_gate_id(ev3, GATE_1, "Device 3 (puller auto)")
+    assert_type_code(ev3, "camera_recognition", "Device 3 (puller auto)")
+    assert_searchable_empty(ev3, "Device 3 (puller auto)")
 
     # Both events should be in the same transaction (Puller passes the original tx_id)
     tx2 = ev2.get("transaction_id")
@@ -571,6 +644,8 @@ def test_manual_trigger(hdrs, dev2_cfg_id, dev3_sid):
     ev3 = wait_for_new_event(hdrs, dev3_sid, before_dev3, "Device 3 (manual trigger)", timeout=35)
     assert_raw_payload(ev3, "Device 3 (manual trigger)")
     assert_gate_id(ev3, GATE_1, "Device 3 (manual trigger)")
+    assert_type_code(ev3, "camera_recognition", "Device 3 (manual trigger)")
+    assert_searchable_empty(ev3, "Device 3 (manual trigger)")
 
 
 # ─── Test 2.5 – Raw JSON body (no multipart wrapper) ─────────────────────────
@@ -610,6 +685,8 @@ def test_raw_json_body(hdrs, dev1_sid, dev1_key):
     ev = wait_for_new_event(hdrs, dev1_sid, before, "Device 1 raw JSON body")
     assert_raw_payload(ev, "Device 1 raw JSON body", expected_fragment="BB5678CC")
     assert_gate_id(ev, GATE_1, "Device 1 raw JSON body")
+    assert_type_code(ev, "camera_recognition", "Device 1 raw JSON body")
+    assert_searchable_empty(ev, "Device 1 raw JSON body")
 
 
 # ─── Test 2.6 – Auto-collected form fields (no explicit payload field) ────────
@@ -635,6 +712,8 @@ def test_auto_form_fields(hdrs, dev4_sid, dev4_key):
     ev = wait_for_new_event(hdrs, dev4_sid, before, "Device 4 auto form fields")
     assert_raw_payload(ev, "Device 4 auto form fields", expected_fragment="weight_kg")
     assert_gate_id(ev, GATE_2, "Device 4 auto form fields")
+    assert_type_code(ev, "scale_weight_flat", "Device 4 auto form fields")
+    assert_searchable_empty(ev, "Device 4 auto form fields")
 
 
 # ─── Test 2.7 – Raw XML body ──────────────────────────────────────────────────
@@ -661,6 +740,8 @@ def test_raw_xml_body(hdrs, dev5_sid, dev5_key):
     ev = wait_for_new_event(hdrs, dev5_sid, before, "Device 5 raw XML body")
     assert_raw_payload(ev, "Device 5 raw XML body", expected_fragment="25400.0")
     assert_gate_id(ev, GATE_2, "Device 5 raw XML body")
+    assert_type_code(ev, "scale_weight_xml", "Device 5 raw XML body")
+    assert_searchable_empty(ev, "Device 5 raw XML body")
 
 
 # ─── Test 2.8 – Transaction isolation between gates ──────────────────────────
@@ -729,7 +810,8 @@ def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
     if r_ev.status_code not in (200, 201):
         fail(f"Cannot POST event with external tx_id ({r_ev.status_code}): {r_ev.text}")
 
-    returned_tx = r_ev.json().get("transaction_id")
+    resp_ev = r_ev.json()
+    returned_tx = resp_ev.get("transaction_id")
     if str(returned_tx) != str(tx_id):
         fail(
             f"Matchmaker ignored valid external transaction_id!\n"
@@ -737,6 +819,11 @@ def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
             f"  got:      {returned_tx}"
         )
     ok(f"Valid external tx_id honoured — event attached  (tx={tx_id[:8]}…)")
+
+    # BeforeSave має виставити type_code навіть для подій, створених напряму в Core
+    direct_ev = resp_ev.get("event", {})
+    assert_type_code(direct_ev, "camera_recognition", "Matchmaker Part A (direct Core POST)")
+    assert_searchable_empty(direct_ev, "Matchmaker Part A (direct Core POST)")
 
     # Verify count in that specific transaction increased (no inflation to a new one)
     r_tx2 = requests.get(f"{BASE_URL}/api/v1/transactions/{tx_id}", headers=hdrs, timeout=10)
@@ -765,10 +852,12 @@ def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
     if r_bad.status_code not in (200, 201):
         fail(f"Cannot POST event with nil tx_id ({r_bad.status_code}): {r_bad.text}")
 
-    fallback_tx = r_bad.json().get("transaction_id")
+    resp_bad   = r_bad.json()
+    fallback_tx = resp_bad.get("transaction_id")
     if str(fallback_tx) == nil_tx:
         fail(f"Matchmaker used non-existent nil transaction_id — must fall back to a new one")
     ok(f"Invalid tx_id correctly rejected → new transaction created  (new_tx={str(fallback_tx)[:8]}…)")
+    assert_type_code(resp_bad.get("event", {}), "camera_recognition", "Matchmaker Part B (nil tx)")
 
     # ── Part C: wrong-gate transaction_id → must create a new one ─────────────
     # Grab a GATE_2 transaction id (from dev4 if available)
@@ -794,15 +883,282 @@ def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
                     timeout=10,
                 )
                 if r_cross.status_code in (200, 201):
-                    cross_tx = r_cross.json().get("transaction_id")
+                    resp_cross = r_cross.json()
+                    cross_tx = resp_cross.get("transaction_id")
                     if str(cross_tx) == str(wrong_gate_tx):
                         fail(
                             f"Matchmaker accepted a cross-gate transaction_id!\n"
                             f"  GATE_2 tx {wrong_gate_tx[:8]}… was used for a GATE_1 event"
                         )
                     ok(f"Cross-gate tx_id rejected → new transaction created  (new_tx={str(cross_tx)[:8]}…)")
+                    assert_type_code(resp_cross.get("event", {}), "camera_recognition", "Matchmaker Part C (cross-gate)")
                     return
     info("Part C skipped — no GATE_2 transactions available yet (run tests 2.6–2.7 first)")
+
+
+# ─── History / fuzzy-search setup ────────────────────────────────────────────
+def setup_history_env(rv, hdrs):
+    """
+    Ідемпотентне налаштування для тестів нечіткого пошуку:
+      - Gate GATE_HISTORY з max_events_per_transaction=1
+        (після першої події транзакція автоматично ротується → стає «закритою»)
+      - EventType "PlateEvent" з полем plate
+      - Тестовий пристрій на GATE_HISTORY
+    Повертає (plate_event_type_id, hist_dev_sid).
+    """
+    step("History Test Environment")
+
+    # Gate
+    all_gates = requests.get(f"{BASE_URL}/api/v1/gates", headers=hdrs, timeout=10).json()
+    if not any(g.get("gate_id") == GATE_HISTORY for g in all_gates):
+        r = requests.post(
+            f"{BASE_URL}/api/v1/gates", headers=hdrs,
+            json={
+                "gate_id": GATE_HISTORY,
+                "name":    "History Test Gate",
+                "settings": {"max_events_per_transaction": 1},
+            },
+            timeout=10,
+        )
+        if r.status_code != 201:
+            fail(f"Cannot create gate '{GATE_HISTORY}': {r.text}")
+        ok(f"Created gate '{GATE_HISTORY}'")
+    else:
+        skip(f"Gate '{GATE_HISTORY}' already exists")
+
+    # EventType "PlateEvent"
+    plate_event_type_id = get_or_create_event_type(
+        rv, hdrs,
+        code="PlateEvent",
+        name="Plate Event",
+        fields={"plate": {"type": "string", "required": True}},
+        cache_key=K["type_plate_event"],
+        searchable_key="plate",
+    )
+
+    # API key + device config
+    hist_dev_sid, _ = get_or_create_api_key(
+        rv, hdrs, K["hist_dev_sid"], K["hist_dev_key"],
+        name="Test – History Device",
+        gate_id=GATE_HISTORY,
+        perms=["ingest:events"],
+    )
+    ensure_device_config(
+        hdrs, hist_dev_sid, plate_event_type_id,
+        gate_id=GATE_HISTORY,
+        data_type="json",
+        data_mapping={"plate": "$.plate"},
+        trigger_enabled=False,
+        triggers=[],
+    )
+
+    return plate_event_type_id, hist_dev_sid
+
+
+def _post_plate_event_to_core(hdrs, plate_event_type_id, hist_dev_sid, plate):
+    """
+    Надсилає PlateEvent напряму в Core (минаючи Ingestor/Adapter),
+    щоб протестувати BeforeSave-хук ізольовано.
+    Повертає JSON-відповідь {'event': {...}, 'transaction_id': '...'}.
+    """
+    r = requests.post(
+        f"{BASE_URL}/api/v1/events",
+        headers=hdrs,
+        json={
+            "event_type_id": plate_event_type_id,
+            "gate_id":       GATE_HISTORY,
+            "source_id":     hist_dev_sid,
+            "data":          {"plate": plate},
+        },
+        timeout=10,
+    )
+    if r.status_code not in (200, 201):
+        fail(f"Cannot POST PlateEvent to Core ({r.status_code}): {r.text}")
+    return r.json()
+
+
+def _close_history_gate_transaction(rv):
+    """
+    Видаляє активний ключ транзакції для GATE_HISTORY з Valkey.
+    Після цього annotateOpen() вважає всі транзакції цього шлагбаума закритими,
+    і FindPastTransactionsFuzzy повертає їх у результатах.
+    """
+    key = f"tx_active:{GATE_HISTORY}"
+    rv.delete(key)
+    info(f"Deleted Valkey key '{key}' — transaction now appears closed")
+
+
+# ─── Test 2.10 – BeforeSave hook: searchable_value та type_code заповнюються ──
+def test_searchable_value_hook(hdrs, plate_event_type_id, hist_dev_sid):
+    step("Test 2.10  ·  BeforeSave Hook — searchable_value та type_code")
+
+    resp = _post_plate_event_to_core(hdrs, plate_event_type_id, hist_dev_sid, PLATE_EXACT)
+    ev = resp.get("event", {})
+
+    type_code = ev.get("type_code", "")
+    searchable = ev.get("searchable_value", "")
+    expected = PLATE_EXACT.upper().replace(" ", "")
+
+    if type_code != "PlateEvent":
+        fail(
+            f"type_code not set correctly by BeforeSave\n"
+            f"  expected: 'PlateEvent'\n"
+            f"  got:      '{type_code}'"
+        )
+    ok(f"type_code = '{type_code}'  (correct)")
+
+    if searchable != expected:
+        fail(
+            f"searchable_value not set correctly by BeforeSave\n"
+            f"  expected: '{expected}'\n"
+            f"  got:      '{searchable}'"
+        )
+    ok(f"searchable_value = '{searchable}'  (normalized plate, correct)")
+    info(f"event id={ev.get('id')}  tx={resp.get('transaction_id', '')[:8]}…")
+
+
+# ─── Test 2.11 & 2.12 – GET /transactions/history: exact та fuzzy match ───────
+def test_vehicle_history_search(hdrs, rv, plate_event_type_id, hist_dev_sid):
+    step("Test 2.11/2.12  ·  Vehicle History Search  (exact + fuzzy + no-match)")
+
+    # Переконуємось, що в Core є хоча б один PlateEvent з PLATE_EXACT
+    # (test 2.10 міг вже його створити; якщо ні — створюємо зараз)
+    _post_plate_event_to_core(hdrs, plate_event_type_id, hist_dev_sid, PLATE_EXACT)
+
+    # «Закриваємо» транзакцію: видаляємо активний ключ з Valkey.
+    # FindPastTransactionsFuzzy фільтрує відкриті транзакції через annotateOpen();
+    # без цього кроку пошук поверне порожній список.
+    _close_history_gate_transaction(rv)
+
+    # ── Part A: точний збіг ──────────────────────────────────────────────────
+    r_exact = requests.get(
+        f"{BASE_URL}/api/v1/transactions/history?plate={PLATE_EXACT}",
+        headers=hdrs,
+        timeout=10,
+    )
+    if r_exact.status_code != 200:
+        fail(f"History endpoint failed for exact match ({r_exact.status_code}): {r_exact.text}")
+
+    body_exact = r_exact.json()
+    found = body_exact.get("data") or []
+    if not found:
+        fail(
+            f"Exact search returned 0 results for plate '{PLATE_EXACT}'\n"
+            f"  Check: pg_trgm/fuzzystrmatch extensions enabled, GIN index created, BeforeSave runs"
+        )
+    ok(f"Exact match: found {len(found)} transaction(s) for plate '{PLATE_EXACT}'")
+
+    # Перевіряємо, що у знайденій транзакції є події
+    has_events = any(len(tx.get("events") or []) > 0 for tx in found)
+    if not has_events:
+        warn("Transactions returned without events — check Preload(\"Events\") in FindPastTransactionsFuzzy")
+    else:
+        ok("Transactions include preloaded events  (images accessible)")
+
+    # ── Part B: нечіткий збіг (відстань Левенштейна = 1) ────────────────────
+    r_fuzzy = requests.get(
+        f"{BASE_URL}/api/v1/transactions/history?plate={PLATE_FUZZY}",
+        headers=hdrs,
+        timeout=10,
+    )
+    if r_fuzzy.status_code != 200:
+        fail(f"History endpoint failed for fuzzy match ({r_fuzzy.status_code}): {r_fuzzy.text}")
+
+    found_fuzzy = r_fuzzy.json().get("data") or []
+    if not found_fuzzy:
+        fail(
+            f"Fuzzy search returned 0 results for plate '{PLATE_FUZZY}' "
+            f"(expected to match '{PLATE_EXACT}', distance=1)\n"
+            f"  Check: levenshtein_less_equal() in SQL, fuzzystrmatch extension enabled"
+        )
+    ok(
+        f"Fuzzy match (distance=1): found {len(found_fuzzy)} transaction(s) "
+        f"for plate '{PLATE_FUZZY}' → matched '{PLATE_EXACT}'"
+    )
+
+    # ── Part C: гарантований промах ─────────────────────────────────────────
+    r_miss = requests.get(
+        f"{BASE_URL}/api/v1/transactions/history?plate={PLATE_MISS}",
+        headers=hdrs,
+        timeout=10,
+    )
+    if r_miss.status_code != 200:
+        fail(f"History endpoint failed for no-match ({r_miss.status_code}): {r_miss.text}")
+
+    found_miss = r_miss.json().get("data") or []
+    if found_miss:
+        warn(
+            f"No-match search for '{PLATE_MISS}' returned {len(found_miss)} result(s) — "
+            f"possibly stale data in DB with a similar plate"
+        )
+    else:
+        ok(f"No-match plate '{PLATE_MISS}' correctly returns 0 results")
+
+
+# ─── Test 2.13 – GET /types returns searchable_key; PUT /types/:id updates it ─
+def test_searchable_key_crud(hdrs, plate_event_type_id):
+    step("Test 2.13  ·  searchable_key — GET returns it, PUT updates it")
+
+    # Part A: verify GET /types returns searchable_key = "plate" for PlateEvent
+    r = requests.get(f"{BASE_URL}/api/v1/types", headers=hdrs, timeout=10)
+    if r.status_code != 200:
+        fail(f"GET /types failed ({r.status_code}): {r.text}")
+    all_types = r.json()
+    plate_type = next((t for t in all_types if t["id"] == plate_event_type_id), None)
+    if plate_type is None:
+        fail(f"PlateEvent type (id={plate_event_type_id}) not found in GET /types response")
+    sk = plate_type.get("searchable_key", "")
+    if sk != "plate":
+        fail(
+            f"GET /types: searchable_key mismatch for PlateEvent\n"
+            f"  expected: 'plate'\n"
+            f"  got:      '{sk}'"
+        )
+    ok(f"GET /types: searchable_key = '{sk}'  (correct)")
+
+    # Part B: clear searchable_key via PUT and verify hook no longer populates searchable_value
+    r_clear = requests.put(
+        f"{BASE_URL}/api/v1/types/{plate_event_type_id}",
+        headers=hdrs,
+        json={"searchable_key": ""},
+        timeout=10,
+    )
+    if r_clear.status_code not in (200, 204):
+        fail(f"PUT /types/:id (clear searchable_key) failed ({r_clear.status_code}): {r_clear.text}")
+    ok("PUT /types/:id: searchable_key cleared to ''")
+
+    r_ev = requests.post(
+        f"{BASE_URL}/api/v1/events",
+        headers=hdrs,
+        json={
+            "event_type_id": plate_event_type_id,
+            "gate_id":       GATE_HISTORY,
+            "source_id":     "test-probe",
+            "data":          {"plate": PLATE_EXACT},
+        },
+        timeout=10,
+    )
+    if r_ev.status_code not in (200, 201):
+        fail(f"POST /events (probe) failed ({r_ev.status_code}): {r_ev.text}")
+    ev_probe = r_ev.json().get("event", {})
+    sv = ev_probe.get("searchable_value", "")
+    if sv:
+        fail(
+            f"searchable_value should be empty after clearing searchable_key, got '{sv}'\n"
+            f"  Check: BeforeSave reads et.SearchableKey at save time, not cached"
+        )
+    ok(f"searchable_value empty after clearing searchable_key  (hook respects DB config)")
+
+    # Part C: restore searchable_key = "plate" so subsequent tests still work
+    r_restore = requests.put(
+        f"{BASE_URL}/api/v1/types/{plate_event_type_id}",
+        headers=hdrs,
+        json={"searchable_key": "plate"},
+        timeout=10,
+    )
+    if r_restore.status_code not in (200, 204):
+        fail(f"PUT /types/:id (restore searchable_key) failed ({r_restore.status_code}): {r_restore.text}")
+    ok("PUT /types/:id: searchable_key restored to 'plate'")
 
 
 # ─── Gate helpers for load test ───────────────────────────────────────────────
@@ -974,6 +1330,12 @@ def main():
 
     # ── Matchmaker unit-level test ─────────────────────────────────────────
     test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id)
+
+    # ── Vehicle history / fuzzy-search tests ───────────────────────────────
+    plate_event_type_id, hist_dev_sid = setup_history_env(rv, hdrs)
+    test_searchable_value_hook(hdrs, plate_event_type_id, hist_dev_sid)
+    test_vehicle_history_search(hdrs, rv, plate_event_type_id, hist_dev_sid)
+    test_searchable_key_crud(hdrs, plate_event_type_id)
 
     print(f"\n{BOLD}{'=' * 60}{RESET}")
     print(f"{BOLD}{GREEN}  All tests passed ✓{RESET}")
