@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,8 @@ import (
 	"gorm.io/datatypes"
 )
 
+// HandleTriggerDevice queues a Puller task for every trigger configured on the device.
+// The Puller resolves the pull URL by fetching the target device's own TriggerURL.
 func HandleTriggerDevice(c *gin.Context) {
 	id := c.Param("id")
 	configID, err := uuid.Parse(id)
@@ -30,25 +33,35 @@ func HandleTriggerDevice(c *gin.Context) {
 		return
 	}
 
-	if config.TriggerSourceID == nil || *config.TriggerSourceID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No trigger_source_id configured"})
+	var triggers []models.Trigger
+	if config.Triggers != nil {
+		json.Unmarshal(config.Triggers, &triggers) //nolint:errcheck
+	}
+
+	queued := 0
+	for _, t := range triggers {
+		if t.SourceID == "" {
+			continue
+		}
+		msg := map[string]any{
+			"trigger_source_id": t.SourceID,
+			"gate_id":           config.GateID,
+			"source_id":         config.SourceID,
+			"transaction_id":    "",
+			"context":           map[string]any{},
+		}
+		data, _ := json.Marshal(msg)
+		if err := repository.PublishToPuller(string(data)); err == nil {
+			queued++
+		}
+	}
+
+	if queued == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No triggers configured or all failed to queue"})
 		return
 	}
 
-	msg := map[string]interface{}{
-		"trigger_source_id": *config.TriggerSourceID,
-		"gate_id":           config.GateID,
-		"source_id":         config.SourceID,
-		"transaction_id":    "",
-		"context":           map[string]interface{}{},
-	}
-	data, _ := json.Marshal(msg)
-	if err := repository.PublishToPuller(string(data)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to queue trigger"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Trigger queued"})
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("%d trigger(s) queued", queued)})
 }
 
 func HandleListDeviceConfigs(c *gin.Context) {
@@ -73,14 +86,14 @@ func HandleGetDeviceConfig(c *gin.Context) {
 
 func HandleCreateDeviceConfig(c *gin.Context) {
 	var req struct {
-		SourceID        string         `json:"source_id" binding:"required"`
-		EventTypeID     uuid.UUID      `json:"event_type_id" binding:"required"`
-		GateID          string         `json:"gate_id" binding:"required"`
-		DataMapping     datatypes.JSON `json:"data_mapping" binding:"required"`
-		DataType        string         `json:"data_type" binding:"required"`
-		TriggerURL      *string        `json:"trigger_url"`
-		TriggerSourceID *string        `json:"trigger_source_id"`
-		TriggerEnabled  bool           `json:"trigger_enabled"`
+		SourceID       string         `json:"source_id" binding:"required"`
+		EventTypeID    uuid.UUID      `json:"event_type_id" binding:"required"`
+		GateID         string         `json:"gate_id" binding:"required"`
+		DataMapping    datatypes.JSON `json:"data_mapping" binding:"required"`
+		DataType       string         `json:"data_type" binding:"required"`
+		TriggerURL     *string        `json:"trigger_url"`
+		Triggers       datatypes.JSON `json:"triggers"`
+		TriggerEnabled bool           `json:"trigger_enabled"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -88,16 +101,21 @@ func HandleCreateDeviceConfig(c *gin.Context) {
 		return
 	}
 
+	triggers := req.Triggers
+	if triggers == nil {
+		triggers = datatypes.JSON([]byte("[]"))
+	}
+
 	config := &models.DeviceConfig{
-		SourceID:        req.SourceID,
-		EventTypeID:     req.EventTypeID,
-		GateID:          req.GateID,
-		DataMapping:     req.DataMapping,
-		DataType:        req.DataType,
-		TriggerURL:      req.TriggerURL,
-		TriggerSourceID: req.TriggerSourceID,
-		TriggerEnabled:  req.TriggerEnabled,
-		Enabled:         true,
+		SourceID:       req.SourceID,
+		EventTypeID:    req.EventTypeID,
+		GateID:         req.GateID,
+		DataMapping:    req.DataMapping,
+		DataType:       req.DataType,
+		TriggerURL:     req.TriggerURL,
+		Triggers:       triggers,
+		TriggerEnabled: req.TriggerEnabled,
+		Enabled:        true,
 	}
 
 	savedConfig := repository.CreateDeviceConfig(config)
@@ -119,13 +137,13 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 	}
 
 	var req struct {
-		EventTypeID     *uuid.UUID       `json:"event_type_id"`
-		GateID          *string          `json:"gate_id"`
-		DataType        *string          `json:"data_type"`
-		DataMapping     *json.RawMessage `json:"data_mapping"`
-		TriggerEnabled  *bool            `json:"trigger_enabled"`
-		TriggerURL      *string          `json:"trigger_url"`
-		TriggerSourceID *string          `json:"trigger_source_id"`
+		EventTypeID    *uuid.UUID       `json:"event_type_id"`
+		GateID         *string          `json:"gate_id"`
+		DataType       *string          `json:"data_type"`
+		DataMapping    *json.RawMessage `json:"data_mapping"`
+		TriggerURL     *string          `json:"trigger_url"`
+		TriggerEnabled *bool            `json:"trigger_enabled"`
+		Triggers       *json.RawMessage `json:"triggers"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -144,14 +162,14 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 	if req.DataMapping != nil {
 		config.DataMapping = datatypes.JSON(*req.DataMapping)
 	}
-	if req.TriggerEnabled != nil {
-		config.TriggerEnabled = *req.TriggerEnabled
-	}
 	if req.TriggerURL != nil {
 		config.TriggerURL = req.TriggerURL
 	}
-	if req.TriggerSourceID != nil {
-		config.TriggerSourceID = req.TriggerSourceID
+	if req.TriggerEnabled != nil {
+		config.TriggerEnabled = *req.TriggerEnabled
+	}
+	if req.Triggers != nil {
+		config.Triggers = datatypes.JSON(*req.Triggers)
 	}
 
 	if err := repository.UpdateDeviceConfig(&config); err != nil {

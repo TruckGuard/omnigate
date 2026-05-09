@@ -27,9 +27,12 @@ func GetUserProfileByAuthID(authID uint) *models.UserProfile {
 	return &profile
 }
 
-func CreateUserProfile(profile *models.UserProfile) *models.UserProfile {
-	DB.Create(profile)
-	return profile
+func CreateUserProfile(p *models.UserProfile) *models.UserProfile {
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	DB.Create(p)
+	return p
 }
 
 func UpdateUserProfile(profile *models.UserProfile) error {

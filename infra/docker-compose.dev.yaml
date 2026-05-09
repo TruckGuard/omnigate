@@ -72,8 +72,6 @@ services:
       - PULLER_API_KEY=${PULLER_API_KEY}
       - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
-    ports:
-      - "8001:8080"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 10s
@@ -104,10 +102,7 @@ services:
       - CORE_URL=http://gateway
       - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
       - PORT=8080
-
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
-    ports:
-      - "8002:8080"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 10s
@@ -134,8 +129,6 @@ services:
       - VALKEY_ADDR=valkey:6379
       - PORT=8080
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
-    ports:
-      - "8003:8080"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 10s

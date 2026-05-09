@@ -12,12 +12,13 @@ class PullWorker:
         self.ingestor = IngestorClient(cfg.INGESTOR_URL)
 
     def _get_trigger_url(self, trigger_source_id: str) -> str:
-        """Fetch device config from Core to resolve the pull URL."""
-        url = f"{cfg.CORE_URL}/configs/devices/{trigger_source_id}"
-        resp = requests.get(url, timeout=10)
+        """Fetch the target device's config from Core and return its polling URL."""
+        resp = requests.get(
+            f"{cfg.CORE_URL}/configs/devices/{trigger_source_id}", timeout=10
+        )
         resp.raise_for_status()
         device_config = resp.json()
-        trigger_url = device_config.get("trigger_url")
+        trigger_url = (device_config.get("trigger_url") or "").strip()
         if not trigger_url:
             raise ValueError(f"No trigger_url configured for device {trigger_source_id}")
         return trigger_url

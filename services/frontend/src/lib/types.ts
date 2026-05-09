@@ -80,6 +80,10 @@ export interface GateStats {
   recent_transactions: Transaction[];
 }
 
+export interface Trigger {
+  source_id: string;
+}
+
 export interface DeviceConfig {
   id: string;
   source_id: string;
@@ -88,8 +92,10 @@ export interface DeviceConfig {
   gate_id: string;
   data_mapping: Record<string, string>;
   data_type: string;
+  /** URL Puller calls when THIS device is the pull target of another device's trigger. */
   trigger_url: string | null;
-  trigger_source_id: string | null;
+  /** List of target devices this device activates after its own event is processed. */
+  triggers: Trigger[];
   trigger_enabled: boolean;
   enabled: boolean;
   created_at: string;

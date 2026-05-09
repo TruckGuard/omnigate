@@ -91,15 +91,21 @@ class EventProcessor:
         if transaction_id:
             span.set_attribute("truckguard.transaction_id", str(transaction_id))
         
-        # 6. Trigger PULLER if configured (URL is resolved from target device's config by Puller)
-        if config.get("trigger_enabled") and config.get("trigger_source_id"):
-            self.puller.trigger_pull(
-                trigger_source_id=config["trigger_source_id"],
-                transaction_id=transaction_id,
-                gate_id=gate_id,
-                source_id=source_id,
-                event_data=transformed_data,
-            )
+        # 6. Trigger PULLER for every configured target device.
+        # Puller resolves the pull URL from the target device's own trigger_url config field.
+        if config.get("trigger_enabled"):
+            triggers = config.get("triggers") or []
+            for trigger in triggers:
+                target_source_id = trigger.get("source_id") if isinstance(trigger, dict) else None
+                if not target_source_id:
+                    continue
+                self.puller.trigger_pull(
+                    trigger_source_id=target_source_id,
+                    transaction_id=transaction_id,
+                    gate_id=gate_id,
+                    source_id=source_id,
+                    event_data=transformed_data,
+                )
     
     def _get_config(self, source_id: str) -> Dict:
         """Get device config with caching."""

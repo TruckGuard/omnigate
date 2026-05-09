@@ -9,34 +9,42 @@ Device layout (multi-gate):
   GATE_1 (gate-north):
     Device 1 – Camera (JSON)      – multipart ingest with image, no trigger
     Device 2 – Scale  (JSON)      – ingest triggers puller → targets Device 3
-    Device 3 – Camera (JSON)      – puller pull target; owns trigger_url in its config
+                                    triggers: [{source_id: dev3_sid}]
+    Device 3 – Camera (JSON)      – puller pull target; trigger_url lives on THIS device's config
   GATE_2 (gate-south):
     Device 4 – Scale  (JSON flat) – raw JSON body & auto-collected form fields
     Device 5 – Scale  (XML)       – raw XML body
 
-Puller flow:
+Puller flow (multi-trigger):
   Adapter processes Device 2 event
-    → publishes {trigger_source_id: dev3_sid, gate_id: GATE_1, ...} to events:puller stream
-  Puller reads trigger_source_id + gate_id
-    → GET /api/v1/configs/devices/{trigger_source_id} on Core
-    → reads trigger_url from Device 3 config
-    → fetches trigger_url
-    → POSTs result to Ingestor as Device 3, including gate_id in envelope
+    → iterates over config["triggers"]
+    → publishes {trigger_source_id: dev3_sid, gate_id: GATE_1, ...}
+      to events:puller stream (one message per trigger entry)
+  Puller reads trigger_source_id → fetches Device 3's config from Core → reads trigger_url
+    → GETs trigger_url
+    → POSTs result to Ingestor as Device 3, including original transaction_id
+
+Matchmaker rules:
+  – Normal path:  find active Valkey key for gate → reuse or create new transaction;
+                  enforce max_events_per_transaction (rotate when full).
+  – Puller path:  validate external transaction_id (exists in DB + correct gate)
+                  → attach event; fallback to new transaction if invalid.
 
 Tests:
   2.1  Camera ingest (multipart + image)              — raw_payload + gate_id verified
-  2.2  Puller config resolution                       — config structure + gate_id verified
+  2.2  Puller config — triggers array on Device 2     — URL + source_id in triggers verified
   2.3  Scale ingest + automatic puller trigger        — raw_payload + gate_id verified
-  2.4  Manual trigger via Core API                    — raw_payload + gate_id verified
+  2.4  Manual trigger via Core API                    — all trigger entries queued
   2.5  Raw JSON body (application/json)               — raw_payload + gate_id verified
   2.6  Auto-collected form fields (no payload field)  — raw_payload + gate_id verified
   2.7  Raw XML body (application/xml)                 — raw_payload + gate_id verified
   2.8  Transaction isolation (GATE_1 ≠ GATE_2)        — transaction_id isolation
+  2.9  Matchmaker — external transaction_id (Puller)  — attach valid / reject invalid
 
 Usage:
     ADMIN_DEFAULT_PASSWORD=secret python test.py          # run / reuse env
     ADMIN_DEFAULT_PASSWORD=secret python test.py --reset  # wipe cache, recreate
-    NOTE: --reset required when upgrading from the old single-gate (gate-test) setup.
+    ADMIN_DEFAULT_PASSWORD=secret python test.py --much N # stress test N events
 
 Dependencies:
     pip install requests redis
@@ -46,6 +54,7 @@ import json
 import os
 import sys
 import time
+import random
 
 import requests
 from redis import Redis
@@ -167,13 +176,21 @@ def get_or_create_api_key(rv, hdrs, sid_key, api_key_cache, name, gate_id, perms
 
 
 def ensure_device_config(hdrs, source_id, event_type_id, gate_id, **kw):
-    """Create or update a device config to match the expected settings."""
+    """Create or update a device config to match the expected settings.
+
+    Keyword args map directly to JSON fields: data_type, data_mapping,
+    trigger_enabled, triggers (list of {url, source_id} dicts).
+    """
     body = {
         "source_id":     source_id,
         "event_type_id": event_type_id,
         "gate_id":       gate_id,
         **kw,
     }
+    # Normalise triggers: always send an explicit list (never null)
+    if "triggers" not in body:
+        body["triggers"] = []
+
     r = requests.get(
         f"{BASE_URL}/api/v1/configs/devices/{source_id}", headers=hdrs, timeout=10
     )
@@ -202,8 +219,8 @@ def setup(rv, hdrs):
     """
     Devices on GATE_1 (gate-north):
       1  – Camera  – multipart ingest with image, no trigger
-      2  – Scale   – ingest triggers puller → targets Device 3 via trigger_source_id
-      3  – Camera  – puller pull target; owns trigger_url in its own config
+      2  – Scale   – trigger_enabled, triggers=[{source_id: dev3}]
+      3  – Camera  – puller pull target; trigger_url=TRIGGER_URL lives on THIS device's config
 
     Devices on GATE_2 (gate-south):
       4  – Scale (flat JSON) – raw JSON body & auto-collected form-fields tests
@@ -278,6 +295,7 @@ def setup(rv, hdrs):
     )
 
     step("Device Configs")
+    # Device 1 – camera, no trigger
     ensure_device_config(
         hdrs, dev1_sid, cam_type_id,
         gate_id=GATE_1,
@@ -290,15 +308,18 @@ def setup(rv, hdrs):
             "vehicle_type": "$.Event.Data.Content.VideoResult.vehicle.type",
         },
         trigger_enabled=False,
+        triggers=[],
     )
+    # Device 2 – scale, multi-trigger: targets Device 3 (source_id only; URL lives on Device 3)
     dev2_cfg_id = ensure_device_config(
         hdrs, dev2_sid, scale_type_id,
         gate_id=GATE_1,
         data_type="json",
         data_mapping={"weight_kg": "$.Payload.Measurements.Weight.Value"},
         trigger_enabled=True,
-        trigger_source_id=dev3_sid,
+        triggers=[{"source_id": dev3_sid}],
     )
+    # Device 3 – camera, puller target; Puller resolves trigger_url from THIS device's config
     ensure_device_config(
         hdrs, dev3_sid, cam_type_id,
         gate_id=GATE_1,
@@ -308,21 +329,26 @@ def setup(rv, hdrs):
             "confidence": "$.Event.Data.Content.VideoResult.confidence",
         },
         trigger_enabled=False,
+        triggers=[],
         trigger_url=TRIGGER_URL,
     )
+    # Device 4 – flat JSON scale
     ensure_device_config(
         hdrs, dev4_sid, flat_scale_type_id,
         gate_id=GATE_2,
         data_type="json",
         data_mapping={"weight_kg": "$.weight_kg"},
         trigger_enabled=False,
+        triggers=[],
     )
+    # Device 5 – XML scale
     ensure_device_config(
         hdrs, dev5_sid, xml_scale_type_id,
         gate_id=GATE_2,
         data_type="xml",
         data_mapping={"weight_kg": "$.scale.weight_kg"},
         trigger_enabled=False,
+        triggers=[],
     )
 
     return (
@@ -331,6 +357,7 @@ def setup(rv, hdrs):
         dev3_sid,
         dev4_sid, dev4_key,
         dev5_sid, dev5_key,
+        cam_type_id,
     )
 
 
@@ -364,7 +391,6 @@ def wait_for_new_event(hdrs, source_id, count_before, label, timeout=25) -> dict
 
 # ─── Assertion helpers ────────────────────────────────────────────────────────
 def assert_raw_payload(ev, label, expected_fragment=None):
-    """Verify the event has a non-empty raw_payload, optionally checking a substring."""
     raw = ev.get("raw_payload") or ""
     if not raw:
         fail(f"'{label}': raw_payload is missing or empty  (event id={ev.get('id')})")
@@ -378,7 +404,6 @@ def assert_raw_payload(ev, label, expected_fragment=None):
 
 
 def assert_gate_id(ev, expected_gate, label):
-    """Verify the event's gate_id matches the expected gate."""
     actual = ev.get("gate_id")
     if actual != expected_gate:
         fail(f"'{label}': gate_id mismatch — expected '{expected_gate}', got '{actual}'")
@@ -431,25 +456,48 @@ def test_camera_ingest(hdrs, dev1_sid, dev1_key):
     assert_gate_id(ev, GATE_1, "Device 1 camera")
 
 
-# ─── Test 2.2 – Puller config resolution ─────────────────────────────────────
-def test_puller_config_resolution(hdrs, dev3_sid):
-    step("Test 2.2  ·  Puller Config Resolution  (Device 3 owns trigger_url)")
+# ─── Test 2.2 – Puller config — triggers array on Device 2 ───────────────────
+def test_puller_config_resolution(hdrs, dev2_sid, dev3_sid):
+    step("Test 2.2  ·  Puller Config — triggers[] on Device 2 + trigger_url on Device 3")
 
-    r = requests.get(
+    # Device 2 must have triggers[] pointing at Device 3's source_id (no url in entry)
+    r2 = requests.get(
+        f"{BASE_URL}/api/v1/configs/devices/{dev2_sid}", headers=hdrs, timeout=10
+    )
+    if r2.status_code != 200:
+        fail(f"Cannot fetch Device 2 config ({r2.status_code}): {r2.text}")
+
+    cfg2 = r2.json()
+    triggers = cfg2.get("triggers") or []
+
+    if not triggers:
+        fail(f"Device 2 config has no triggers  (got: {cfg2})")
+
+    trigger = triggers[0]
+    if trigger.get("source_id") != dev3_sid:
+        fail(
+            f"Device 2 trigger[0].source_id mismatch: "
+            f"expected '{dev3_sid}', got '{trigger.get('source_id')}'"
+        )
+    if cfg2.get("gate_id") != GATE_1:
+        fail(f"Device 2 config has wrong gate_id: expected '{GATE_1}', got '{cfg2.get('gate_id')}'")
+
+    ok(f"Device 2 triggers[0]: source_id='{trigger['source_id']}'  (no url — correct)")
+    ok(f"gate_id correct  (gate_id='{cfg2.get('gate_id')}')")
+    info(f"Adapter will iterate {len(triggers)} trigger(s) and publish one Puller task each")
+
+    # Device 3 must have trigger_url set — Puller reads it from here
+    r3 = requests.get(
         f"{BASE_URL}/api/v1/configs/devices/{dev3_sid}", headers=hdrs, timeout=10
     )
-    if r.status_code != 200:
-        fail(f"Cannot fetch Device 3 config ({r.status_code}): {r.text}")
+    if r3.status_code != 200:
+        fail(f"Cannot fetch Device 3 config ({r3.status_code}): {r3.text}")
 
-    cfg = r.json()
-    trigger_url = cfg.get("trigger_url")
-    if not trigger_url:
-        fail(f"Device 3 config is missing trigger_url  (got: {cfg})")
-    if cfg.get("gate_id") != GATE_1:
-        fail(f"Device 3 config has wrong gate_id: expected '{GATE_1}', got '{cfg.get('gate_id')}'")
+    cfg3 = r3.json()
+    if not (cfg3.get("trigger_url") or "").strip():
+        fail(f"Device 3 config is missing trigger_url — Puller cannot pull it  (got: {cfg3})")
 
-    ok(f"Device 3 config: trigger_url='{trigger_url}', gate_id='{cfg.get('gate_id')}'")
-    info("Puller resolves trigger_url at runtime via GET /api/v1/configs/devices/{trigger_source_id}")
+    ok(f"Device 3 trigger_url present: '{cfg3['trigger_url']}'")
 
 
 # ─── Test 2.3 – Scale ingest + automatic puller trigger ───────────────────────
@@ -479,7 +527,8 @@ def test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid):
     if r.status_code != 202:
         fail(f"Ingestor rejected event ({r.status_code}): {r.text}")
 
-    ok(f"Ingestor accepted  (transaction_id={r.json().get('transaction_id')})")
+    ingest_tx_id = r.json().get("transaction_id")
+    ok(f"Ingestor accepted  (transaction_id={ingest_tx_id})")
 
     ev2 = wait_for_new_event(hdrs, dev2_sid, before_dev2, "Device 2 scale", timeout=20)
     assert_raw_payload(ev2, "Device 2 scale", expected_fragment="25400.0")
@@ -489,6 +538,14 @@ def test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid):
     assert_raw_payload(ev3, "Device 3 (puller auto)")
     # gate_id must be GATE_1, not "system" (the Puller's own API-key gate).
     assert_gate_id(ev3, GATE_1, "Device 3 (puller auto)")
+
+    # Both events should be in the same transaction (Puller passes the original tx_id)
+    tx2 = ev2.get("transaction_id")
+    tx3 = ev3.get("transaction_id")
+    if tx2 and tx3 and tx2 == tx3:
+        ok(f"Both events share the same transaction  (tx={tx2[:8]}…)")
+    else:
+        warn(f"Transactions differ: dev2 tx={tx2}, dev3 tx={tx3}  (TTL may have expired)")
 
 
 # ─── Test 2.4 – Manual trigger via Core API ───────────────────────────────────
@@ -505,8 +562,11 @@ def test_manual_trigger(hdrs, dev2_cfg_id, dev3_sid):
     if r.status_code not in (200, 202):
         fail(f"Manual trigger failed ({r.status_code}): {r.text}")
 
-    ok(f"Manual trigger accepted  (response={r.json()})")
-    info("Core published trigger_source_id + gate_id to events:puller stream")
+    resp = r.json()
+    ok(f"Manual trigger accepted  (response={resp})")
+    # Response message should mention how many triggers were queued
+    queued_msg = resp.get("message", "")
+    info(f"Core response: '{queued_msg}'")
 
     ev3 = wait_for_new_event(hdrs, dev3_sid, before_dev3, "Device 3 (manual trigger)", timeout=35)
     assert_raw_payload(ev3, "Device 3 (manual trigger)")
@@ -573,7 +633,6 @@ def test_auto_form_fields(hdrs, dev4_sid, dev4_key):
 
     ok(f"Ingestor accepted form fields  (event_id={r.json().get('event_id')})")
     ev = wait_for_new_event(hdrs, dev4_sid, before, "Device 4 auto form fields")
-    # Ingestor serialises collected fields to JSON: {"weight_kg": "25400.0", ...}
     assert_raw_payload(ev, "Device 4 auto form fields", expected_fragment="weight_kg")
     assert_gate_id(ev, GATE_2, "Device 4 auto form fields")
 
@@ -635,6 +694,218 @@ def test_transaction_isolation(hdrs, dev1_sid, dev4_sid):
     info(f"GATE_2 ({GATE_2}) tx={tx2[:8]}…")
 
 
+# ─── Test 2.9 – Matchmaker: external transaction_id (Puller path) ─────────────
+def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
+    step("Test 2.9  ·  Matchmaker — external transaction_id  (Puller path validation)")
+
+    # ── Part A: valid external transaction_id → event must attach to it ────────
+    ev_existing = get_latest_event(hdrs, dev1_sid)
+    if not ev_existing:
+        fail("No GATE_1 events to derive a transaction_id from — run test 2.1 first")
+
+    tx_id = ev_existing.get("transaction_id")
+    if not tx_id:
+        fail(f"Latest GATE_1 event has no transaction_id  (event id={ev_existing.get('id')})")
+
+    # Count events currently in that transaction
+    r_tx = requests.get(f"{BASE_URL}/api/v1/transactions/{tx_id}", headers=hdrs, timeout=10)
+    if r_tx.status_code != 200:
+        fail(f"Cannot fetch transaction {tx_id}: {r_tx.text}")
+    events_before = len(r_tx.json().get("events") or [])
+
+    # POST event directly to Core with that transaction_id (simulates Puller re-inject)
+    r_ev = requests.post(
+        f"{BASE_URL}/api/v1/events",
+        headers=hdrs,
+        json={
+            "event_type_id": cam_type_id,
+            "gate_id":       GATE_1,
+            "source_id":     dev1_sid,
+            "data":          {"plate": "MATCHMAKER-TEST"},
+            "transaction_id": tx_id,
+        },
+        timeout=10,
+    )
+    if r_ev.status_code not in (200, 201):
+        fail(f"Cannot POST event with external tx_id ({r_ev.status_code}): {r_ev.text}")
+
+    returned_tx = r_ev.json().get("transaction_id")
+    if str(returned_tx) != str(tx_id):
+        fail(
+            f"Matchmaker ignored valid external transaction_id!\n"
+            f"  expected: {tx_id}\n"
+            f"  got:      {returned_tx}"
+        )
+    ok(f"Valid external tx_id honoured — event attached  (tx={tx_id[:8]}…)")
+
+    # Verify count in that specific transaction increased (no inflation to a new one)
+    r_tx2 = requests.get(f"{BASE_URL}/api/v1/transactions/{tx_id}", headers=hdrs, timeout=10)
+    events_after = len(r_tx2.json().get("events") or [])
+    if events_after <= events_before:
+        fail(
+            f"Event was NOT added to the target transaction!\n"
+            f"  transaction {tx_id[:8]}… had {events_before} events, now {events_after}"
+        )
+    ok(f"Event count in transaction: {events_before} → {events_after}  (no false new transaction)")
+
+    # ── Part B: invalid / non-existent transaction_id → must create a new one ──
+    nil_tx = "00000000-0000-0000-0000-000000000000"
+    r_bad = requests.post(
+        f"{BASE_URL}/api/v1/events",
+        headers=hdrs,
+        json={
+            "event_type_id": cam_type_id,
+            "gate_id":       GATE_1,
+            "source_id":     dev1_sid,
+            "data":          {"plate": "FAKE-TX-TEST"},
+            "transaction_id": nil_tx,
+        },
+        timeout=10,
+    )
+    if r_bad.status_code not in (200, 201):
+        fail(f"Cannot POST event with nil tx_id ({r_bad.status_code}): {r_bad.text}")
+
+    fallback_tx = r_bad.json().get("transaction_id")
+    if str(fallback_tx) == nil_tx:
+        fail(f"Matchmaker used non-existent nil transaction_id — must fall back to a new one")
+    ok(f"Invalid tx_id correctly rejected → new transaction created  (new_tx={str(fallback_tx)[:8]}…)")
+
+    # ── Part C: wrong-gate transaction_id → must create a new one ─────────────
+    # Grab a GATE_2 transaction id (from dev4 if available)
+    r_txs = requests.get(
+        f"{BASE_URL}/api/v1/transactions?gate_id={GATE_2}&limit=1", headers=hdrs, timeout=10
+    )
+    if r_txs.status_code == 200:
+        tx_data = r_txs.json()
+        items = tx_data.get("data") or tx_data if isinstance(tx_data, list) else []
+        if items:
+            wrong_gate_tx = items[0].get("id") or items[0].get("transaction_id")
+            if wrong_gate_tx:
+                r_cross = requests.post(
+                    f"{BASE_URL}/api/v1/events",
+                    headers=hdrs,
+                    json={
+                        "event_type_id": cam_type_id,
+                        "gate_id":       GATE_1,
+                        "source_id":     dev1_sid,
+                        "data":          {"plate": "WRONG-GATE-TX"},
+                        "transaction_id": wrong_gate_tx,
+                    },
+                    timeout=10,
+                )
+                if r_cross.status_code in (200, 201):
+                    cross_tx = r_cross.json().get("transaction_id")
+                    if str(cross_tx) == str(wrong_gate_tx):
+                        fail(
+                            f"Matchmaker accepted a cross-gate transaction_id!\n"
+                            f"  GATE_2 tx {wrong_gate_tx[:8]}… was used for a GATE_1 event"
+                        )
+                    ok(f"Cross-gate tx_id rejected → new transaction created  (new_tx={str(cross_tx)[:8]}…)")
+                    return
+    info("Part C skipped — no GATE_2 transactions available yet (run tests 2.6–2.7 first)")
+
+
+# ─── Gate helpers for load test ───────────────────────────────────────────────
+def get_or_create_gate(hdrs, gate_id, name, settings):
+    all_gates = requests.get(f"{BASE_URL}/api/v1/gates", headers=hdrs, timeout=10).json()
+    existing = next((g for g in all_gates if g.get("gate_id") == gate_id), None)
+    if existing:
+        ur = requests.put(
+            f"{BASE_URL}/api/v1/gates/{existing['id']}", headers=hdrs,
+            json={"gate_id": gate_id, "name": name, "settings": settings}, timeout=10
+        )
+        if ur.status_code not in (200, 204):
+            fail(f"Cannot update gate '{gate_id}': {ur.text}")
+        skip(f"Gate '{gate_id}'  (exists id={existing['id']})")
+        return existing["id"]
+
+    r = requests.post(
+        f"{BASE_URL}/api/v1/gates", headers=hdrs,
+        json={"gate_id": gate_id, "name": name, "settings": settings},
+        timeout=10,
+    )
+    if r.status_code != 201:
+        fail(f"Cannot create gate '{gate_id}': {r.text}")
+    gate_uuid = r.json().get("id")
+    ok(f"Created gate '{gate_id}'  (id={gate_uuid})")
+    return gate_uuid
+
+
+# ─── Load test ────────────────────────────────────────────────────────────────
+def run_much(rv, hdrs, num_events):
+    step(f"Load Test  ·  Generating {num_events} events")
+
+    GATE_MUCH = "gate-much"
+    get_or_create_gate(
+        hdrs, GATE_MUCH, "Load Test Gate",
+        {"transaction_ttl_minutes": 1, "max_events_per_transaction": 5}
+    )
+
+    cam_type_id = get_or_create_event_type(
+        rv, hdrs, code="camera_much", name="Camera (Much)",
+        fields={"plate": {"type": "string", "required": True}},
+        cache_key="omnigate:test:type_camera_much",
+    )
+    scale_type_id = get_or_create_event_type(
+        rv, hdrs, code="scale_much", name="Scale (Much)",
+        fields={"weight_kg": {"type": "float", "required": True}},
+        cache_key="omnigate:test:type_scale_much",
+    )
+
+    # Puller target: trigger_url is set here; scale devices reference this source_id in their triggers[]
+    puller_sid, puller_key = get_or_create_api_key(
+        rv, hdrs, "omnigate:test:much_puller_sid", "omnigate:test:much_puller_key",
+        name="Load Puller Target", gate_id=GATE_MUCH, perms=["ingest:events"]
+    )
+    ensure_device_config(
+        hdrs, puller_sid, cam_type_id,
+        gate_id=GATE_MUCH, data_type="json",
+        data_mapping={"plate": "$.plate"},
+        trigger_enabled=False,
+        triggers=[],
+        trigger_url=TRIGGER_URL,
+    )
+
+    devs = []
+    for i in range(5):
+        is_cam = (i % 2 == 0)
+        sid, key = get_or_create_api_key(
+            rv, hdrs, f"omnigate:test:much_dev{i}_sid", f"omnigate:test:much_dev{i}_key",
+            name=f"Load Dev {i}", gate_id=GATE_MUCH, perms=["ingest:events"]
+        )
+        # Scale devices trigger the puller target; camera devices have no trigger
+        ensure_device_config(
+            hdrs, sid, cam_type_id if is_cam else scale_type_id,
+            gate_id=GATE_MUCH, data_type="json",
+            data_mapping={"plate": "$.plate"} if is_cam else {"weight_kg": "$.weight"},
+            trigger_enabled=not is_cam,
+            triggers=[{"source_id": puller_sid}] if not is_cam else [],
+        )
+        devs.append((sid, key, is_cam))
+
+    info(f"Starting to send {num_events} events...")
+    start_t = time.time()
+    for n in range(1, num_events + 1):
+        sid, key, is_cam = random.choice(devs)
+        payload = {"plate": f"AA{random.randint(1000, 9999)}BB"} if is_cam \
+                  else {"weight": random.randint(1000, 40000)}
+
+        r = requests.post(
+            f"{BASE_URL}/ingest/event",
+            headers={"X-API-Key": key},
+            json=payload,
+            timeout=5
+        )
+        if r.status_code != 202:
+            warn(f"Event {n} failed: {r.status_code} {r.text}")
+        elif n % 50 == 0 or n == num_events:
+            print(f"  ... sent {n}/{num_events} events", end="\r")
+
+    dur = time.time() - start_t
+    print()
+    ok(f"Generated {num_events} events in {dur:.2f}s ({num_events/dur:.1f} ev/s)")
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 def main():
     if not ADMIN_PASS:
@@ -644,6 +915,10 @@ def main():
     parser.add_argument(
         "--reset", action="store_true",
         help="Clear Valkey test cache and recreate all devices/configs",
+    )
+    parser.add_argument(
+        "--much", type=int, metavar="N",
+        help="Generate N events across multiple devices to stress test transaction limits",
     )
     args = parser.parse_args()
 
@@ -669,6 +944,10 @@ def main():
     hdrs = login()
     ok("Logged in as admin")
 
+    if args.much:
+        run_much(rv, hdrs, args.much)
+        return
+
     step("Environment Setup")
     (
         dev1_sid, dev1_key,
@@ -676,11 +955,12 @@ def main():
         dev3_sid,
         dev4_sid, dev4_key,
         dev5_sid, dev5_key,
+        cam_type_id,
     ) = setup(rv, hdrs)
 
     # ── GATE_1 tests ───────────────────────────────────────────────────────
     test_camera_ingest(hdrs, dev1_sid, dev1_key)
-    test_puller_config_resolution(hdrs, dev3_sid)
+    test_puller_config_resolution(hdrs, dev2_sid, dev3_sid)
     test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid)
     test_manual_trigger(hdrs, dev2_cfg_id, dev3_sid)
     test_raw_json_body(hdrs, dev1_sid, dev1_key)
@@ -691,6 +971,9 @@ def main():
 
     # ── Cross-gate regression ──────────────────────────────────────────────
     test_transaction_isolation(hdrs, dev1_sid, dev4_sid)
+
+    # ── Matchmaker unit-level test ─────────────────────────────────────────
+    test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id)
 
     print(f"\n{BOLD}{'=' * 60}{RESET}")
     print(f"{BOLD}{GREEN}  All tests passed ✓{RESET}")

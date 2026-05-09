@@ -6,6 +6,9 @@ import (
 )
 
 func CreateEvent(event *models.Event) *models.Event {
+	if event.ID == uuid.Nil {
+		event.ID = uuid.New()
+	}
 	DB.Create(event)
 	return event
 }

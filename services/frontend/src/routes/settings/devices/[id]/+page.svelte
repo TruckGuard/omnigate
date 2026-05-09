@@ -20,8 +20,8 @@
   } from '$lib/components/ui/select/index.js';
   import MappingEditor from '$lib/components/MappingEditor.svelte';
   import { api } from '$lib/api.js';
-  import type { DeviceConfig, Event, EventType, Gate, APIKey } from '$lib/types.js';
-  import { ChevronLeft, Plus, Zap } from 'lucide-svelte';
+  import type { DeviceConfig, Event, EventType, Gate, APIKey, Trigger } from '$lib/types.js';
+  import { ChevronLeft, Plus, Trash2, Zap } from 'lucide-svelte';
 
   const deviceId = $derived($page.params.id ?? '');
   const isNew    = $derived(deviceId === 'new');
@@ -36,24 +36,26 @@
   let confirmDelete = $state(false);
 
   // Form state
-  let sourceId        = $state('');
-  let gateId          = $state('');
-  let eventTypeId     = $state('');
-  let dataType        = $state('');
-  let mappingObj      = $state<Record<string, string>>({});
-  let triggerEnabled  = $state(false);
-  let triggerUrl      = $state('');
-  let triggerSourceId = $state('');
+  let sourceId       = $state('');
+  let gateId         = $state('');
+  let eventTypeId    = $state('');
+  let dataType       = $state('');
+  let mappingObj     = $state<Record<string, string>>({});
+  // Pull URL on THIS device (called by Puller when this device is someone else's target)
+  let triggerUrl     = $state('');
+  // Outgoing triggers: devices THIS device activates after its own event
+  let triggerEnabled = $state(false);
+  let triggers       = $state<Trigger[]>([]);
 
   let latestEvent = $state<Event | null>(null);
 
-  // New key inline form
+  // Inline key form
   let creatingKey  = $state(false);
   let newKeyName   = $state('');
   let newKeyGateId = $state('');
   let savingKey    = $state(false);
 
-  // New gate inline form
+  // Inline gate form
   let creatingGate    = $state(false);
   let creatingKeyGate = $state(false);
   let newGateId       = $state('');
@@ -61,6 +63,14 @@
   let savingGate      = $state(false);
 
   const selectedType = $derived(eventTypes.find(t => t.id === eventTypeId));
+
+  // Devices that trigger THIS device (have this source_id in their triggers[])
+  const triggeredByConfigs = $derived(
+    allConfigs.filter(c =>
+      c.source_id !== sourceId &&
+      (c.triggers ?? []).some((t: Trigger) => t.source_id === sourceId)
+    )
+  );
 
   $effect(() => {
     if (!isNew) return;
@@ -79,14 +89,14 @@
       (async () => {
         try {
           const cfg = await api.configs.get(deviceId);
-          sourceId        = cfg.source_id;
-          gateId          = cfg.gate_id;
-          eventTypeId     = cfg.event_type_id;
-          dataType        = cfg.data_type;
-          mappingObj      = cfg.data_mapping ?? {};
-          triggerEnabled  = cfg.trigger_enabled;
-          triggerUrl      = cfg.trigger_url ?? '';
-          triggerSourceId = cfg.trigger_source_id ?? '';
+          sourceId       = cfg.source_id;
+          gateId         = cfg.gate_id;
+          eventTypeId    = cfg.event_type_id;
+          dataType       = cfg.data_type;
+          mappingObj     = cfg.data_mapping ?? {};
+          triggerUrl     = cfg.trigger_url ?? '';
+          triggerEnabled = cfg.trigger_enabled;
+          triggers       = cfg.triggers ?? [];
           api.events.latestForSource(cfg.source_id)
             .then(e => { latestEvent = e; })
             .catch(() => {});
@@ -100,6 +110,18 @@
     }
   });
 
+  function addTrigger() {
+    triggers = [...triggers, { source_id: '' }];
+  }
+
+  function removeTrigger(i: number) {
+    triggers = triggers.filter((_, idx) => idx !== i);
+  }
+
+  function setTriggerSourceId(i: number, value: string) {
+    triggers = triggers.map((t, idx) => idx === i ? { source_id: value } : t);
+  }
+
   async function createNewKey() {
     if (!newKeyName) return;
     savingKey = true;
@@ -109,12 +131,9 @@
         gate_id: newKeyGateId || gateId,
         permission_ids: [],
       });
-      const refreshed = await api.auth.keys.list();
-      apiKeys = refreshed;
+      apiKeys = await api.auth.keys.list();
       sourceId = String(res.id);
-      creatingKey = false;
-      newKeyName = '';
-      newKeyGateId = '';
+      creatingKey = false; newKeyName = ''; newKeyGateId = '';
       toast.success(`Ключ #${res.id} створено — збережіть: ${res.api_key}`);
     } catch {
       toast.error('Помилка створення ключа');
@@ -128,13 +147,9 @@
     savingGate = true;
     try {
       await api.gates.create({ gate_id: newGateId, name: newGateName, location: '', description: '' });
-      const refreshed = await api.gates.list();
-      gates = refreshed;
+      gates = await api.gates.list();
       onCreated(newGateId);
-      creatingGate = false;
-      creatingKeyGate = false;
-      newGateId = '';
-      newGateName = '';
+      creatingGate = false; creatingKeyGate = false; newGateId = ''; newGateName = '';
       toast.success('Шлагбаум створено');
     } catch {
       toast.error('Помилка створення шлагбауму');
@@ -143,33 +158,29 @@
     }
   }
 
-  const triggeredByConfigs = $derived(
-    allConfigs.filter(c => c.trigger_source_id === sourceId && c.source_id !== sourceId)
-  );
-  const triggersConfig = $derived(
-    triggerSourceId ? allConfigs.find(c => c.source_id === triggerSourceId) : null
-  );
-
   async function handleSave() {
     saving = true;
+    const cleanTriggers = triggerEnabled
+      ? triggers.filter(t => t.source_id.trim() !== '')
+      : [];
     try {
       if (isNew) {
         await api.configs.create({
           source_id: sourceId, gate_id: gateId,
           event_type_id: eventTypeId, data_type: dataType,
-          data_mapping: mappingObj, trigger_enabled: triggerEnabled,
-          trigger_url: triggerEnabled ? triggerUrl || null : null,
-          trigger_source_id: triggerEnabled && triggerSourceId ? triggerSourceId : null,
+          data_mapping: mappingObj,
+          trigger_url: triggerUrl || null,
+          trigger_enabled: triggerEnabled,
+          triggers: cleanTriggers,
         });
         toast.success('Пристрій створено');
       } else {
         await api.configs.update(deviceId, {
-          event_type_id: eventTypeId,
-          gate_id: gateId,
-          data_type: dataType,
-          data_mapping: mappingObj, trigger_enabled: triggerEnabled,
-          trigger_url: triggerEnabled ? triggerUrl || null : null,
-          trigger_source_id: triggerEnabled && triggerSourceId ? triggerSourceId : null,
+          event_type_id: eventTypeId, gate_id: gateId,
+          data_type: dataType, data_mapping: mappingObj,
+          trigger_url: triggerUrl || null,
+          trigger_enabled: triggerEnabled,
+          triggers: cleanTriggers,
         });
         toast.success('Пристрій збережено');
       }
@@ -195,9 +206,9 @@
     triggering = true;
     try {
       await api.configs.trigger(deviceId);
-      toast.success('Тригер запущено вручну');
+      toast.success('Тригери запущено вручну');
     } catch {
-      toast.error('Помилка запуску тригера');
+      toast.error('Помилка запуску тригерів');
     } finally {
       triggering = false;
     }
@@ -236,7 +247,6 @@
       <CardHeader><CardTitle>Ідентифікація</CardTitle></CardHeader>
       <CardContent class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Source ID = API Key -->
           <Field label="Джерело (API Ключ)" hint="API ключ, ID якого ідентифікує цей пристрій.">
             {#if isNew}
               <div class="space-y-2">
@@ -250,9 +260,7 @@
                   </SelectTrigger>
                   <SelectContent>
                     {#each apiKeys.filter(k => k.is_active) as k}
-                      <SelectItem value={String(k.id)}>
-                        {k.owner_name} (#{k.id})
-                      </SelectItem>
+                      <SelectItem value={String(k.id)}>{k.owner_name} (#{k.id})</SelectItem>
                     {/each}
                   </SelectContent>
                 </Select>
@@ -393,7 +401,7 @@
       </CardContent>
     </Card>
 
-    <!-- Pull triggers -->
+    <!-- Puller section -->
     <Card>
       <CardHeader>
         <div class="flex items-baseline justify-between">
@@ -401,75 +409,124 @@
           <span class="text-sm text-muted-foreground">Поведінка Adapter → Puller</span>
         </div>
       </CardHeader>
-      <CardContent class="space-y-0">
-        <div class="flex items-start justify-between gap-4 py-3 border-b border-border">
-          <div>
-            <p class="text-sm font-medium">Увімкнути тригер</p>
-            <p class="text-xs text-muted-foreground mt-0.5">Адаптер публікує в events:puller, Puller отримує дані за URL цільового пристрою.</p>
-          </div>
-          <Switch bind:checked={triggerEnabled} />
-        </div>
-        <div class="pt-3 space-y-4 {triggerEnabled ? '' : 'opacity-50 pointer-events-none'}">
-          <Field label="URL цього пристрою" hint="Puller виконає GET запит до цього URL, коли цей пристрій виступає ціллю тригера.">
-            <Input bind:value={triggerUrl} placeholder="https://device.local/snapshot" />
-          </Field>
-          <Field label="Тригерує пристрій (source ID)" hint="Коли це джерело спрацьовує, Puller завантажить дані цільового пристрою. Залиште порожнім для вимкнення.">
-            <Select type="single" bind:value={triggerSourceId}>
-              <SelectTrigger>
-                {#if triggerSourceId}
-                  {allConfigs.find(c => c.source_id === triggerSourceId)?.source_id ?? triggerSourceId}
-                {:else}
-                  Не обрано
-                {/if}
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Не обрано</SelectItem>
-                {#each allConfigs.filter(c => c.source_id !== sourceId) as c}
-                  <SelectItem value={c.source_id}>
-                    {c.source_id}{c.event_type ? ` — ${c.event_type.code}` : ''}
-                  </SelectItem>
-                {/each}
-              </SelectContent>
-            </Select>
-          </Field>
+      <CardContent class="space-y-0 divide-y divide-border">
 
-          {#if !isNew && triggerEnabled && triggerSourceId}
-            <div class="pt-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onclick={handleManualTrigger}
-                disabled={triggering}
-                class="gap-2"
-              >
-                <Zap size={14} />
-                {triggering ? 'Запуск…' : 'Запустити вручну'}
-              </Button>
-              <p class="text-xs text-muted-foreground mt-1">Негайно поставить задачу в чергу Puller.</p>
-            </div>
-          {/if}
+        <!-- Own pull URL (this device as a target) -->
+        <div class="py-4 space-y-3">
+          <div>
+            <p class="text-sm font-medium">URL цього пристрою</p>
+            <p class="text-xs text-muted-foreground mt-0.5">
+              Puller викличе цей URL, коли інший пристрій тригерить цей. Залиште порожнім якщо пристрій не є ціллю.
+            </p>
+          </div>
+          <Input bind:value={triggerUrl} placeholder="https://device.local/snapshot" />
         </div>
+
+        <!-- Outgoing triggers toggle + list -->
+        <div class="pt-4 space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-sm font-medium">Ініціювати тригери</p>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                Після обробки події цього пристрою Adapter поставить задачу в Puller для кожного цільового пристрою.
+              </p>
+            </div>
+            <Switch bind:checked={triggerEnabled} />
+          </div>
+
+          <div class="{triggerEnabled ? '' : 'opacity-50 pointer-events-none'} space-y-2">
+            {#each triggers as trigger, i (i)}
+              <div class="flex items-center gap-2">
+                <div class="flex-1">
+                  <Select
+                    type="single"
+                    value={trigger.source_id}
+                    onValueChange={v => setTriggerSourceId(i, v)}
+                  >
+                    <SelectTrigger>
+                      {#if trigger.source_id}
+                        {@const c = allConfigs.find(x => x.source_id === trigger.source_id)}
+                        {c ? `${c.source_id}${c.event_type ? ' — ' + c.event_type.code : ''}` : trigger.source_id}
+                      {:else}
+                        Оберіть цільовий пристрій…
+                      {/if}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {#each allConfigs.filter(c => c.source_id !== sourceId) as c}
+                        <SelectItem value={c.source_id}>
+                          {c.source_id}{c.event_type ? ` — ${c.event_type.code}` : ''}
+                          {#if c.trigger_url}
+                            <span class="text-muted-foreground"> · має URL</span>
+                          {/if}
+                        </SelectItem>
+                      {/each}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onclick={() => removeTrigger(i)}
+                  class="text-destructive hover:text-destructive shrink-0"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            {/each}
+
+            <Button variant="outline" size="sm" onclick={addTrigger} class="w-full gap-2 mt-1">
+              <Plus size={14} /> Додати цільовий пристрій
+            </Button>
+
+            {#if !isNew && triggerEnabled && triggers.some(t => t.source_id)}
+              <div class="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onclick={handleManualTrigger}
+                  disabled={triggering}
+                  class="gap-2"
+                >
+                  <Zap size={14} />
+                  {triggering ? 'Запуск…' : 'Запустити всі тригери вручну'}
+                </Button>
+                <p class="text-xs text-muted-foreground mt-1">
+                  Негайно поставить задачу в Puller для кожного цільового пристрою.
+                </p>
+              </div>
+            {/if}
+          </div>
+        </div>
+
       </CardContent>
     </Card>
 
-    <!-- Trigger relationships (edit mode only) -->
-    {#if !isNew && (triggeredByConfigs.length > 0 || triggersConfig)}
+    <!-- Trigger relationships -->
+    {#if !isNew && (triggeredByConfigs.length > 0 || triggers.length > 0)}
       <Card>
-        <CardHeader>
-          <CardTitle>Зв'язки тригерів</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Зв'язки тригерів</CardTitle></CardHeader>
         <CardContent class="space-y-3">
-          {#if triggersConfig}
+          {#each triggers.filter(t => t.source_id) as t}
+            {@const targetCfg = allConfigs.find(c => c.source_id === t.source_id)}
             <div class="flex items-center gap-2 text-sm">
               <span class="text-muted-foreground w-[130px] shrink-0">Тригерує →</span>
-              <a href="/settings/devices/{triggersConfig.id}" class="font-mono hover:underline text-primary">
-                {triggersConfig.source_id}
-              </a>
-              {#if triggersConfig.event_type}
-                <Badge variant="outline" class="text-xs">{triggersConfig.event_type.code}</Badge>
+              {#if targetCfg}
+                <a href="/settings/devices/{targetCfg.id}" class="font-mono hover:underline text-primary">
+                  {targetCfg.source_id}
+                </a>
+                {#if targetCfg.event_type}
+                  <Badge variant="outline" class="text-xs">{targetCfg.event_type.code}</Badge>
+                {/if}
+                {#if targetCfg.trigger_url}
+                  <span class="text-xs text-muted-foreground truncate max-w-[200px]">{targetCfg.trigger_url}</span>
+                {:else}
+                  <Badge variant="secondary" class="text-xs">без URL</Badge>
+                {/if}
+              {:else}
+                <span class="font-mono text-muted-foreground">{t.source_id}</span>
               {/if}
             </div>
-          {/if}
+          {/each}
           {#each triggeredByConfigs as trig (trig.id)}
             <div class="flex items-center gap-2 text-sm">
               <span class="text-muted-foreground w-[130px] shrink-0">← Викликається</span>
@@ -488,7 +545,6 @@
   </main>
 {/if}
 
-<!-- Delete confirmation -->
 <Dialog bind:open={confirmDelete}>
   <DialogContent>
     <DialogHeader>

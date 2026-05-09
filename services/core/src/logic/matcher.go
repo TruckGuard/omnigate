@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"math/rand"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +14,18 @@ import (
 )
 
 const defaultTransactionTTL = 30 * time.Minute
+
+func generateTransactionCode(gateID string) string {
+	now := time.Now()
+	return fmt.Sprintf("TRK-%s-%04d%02d%02d-%06d-%04x",
+		gateID,
+		now.Year(),
+		now.Month(),
+		now.Day(),
+		now.Unix()%1000000,
+		rand.Intn(0xFFFF),
+	)
+}
 
 func ActiveTxKey(gateID string) string {
 	return fmt.Sprintf("tx_active:%s", gateID)
@@ -49,38 +63,63 @@ func MaxEventsForGate(gateID string) int {
 	return 0
 }
 
-// FindOrCreateTransaction checks Valkey for an active transaction for the gate.
-// If found, refreshes the TTL and returns the ID.
-// If the key has expired a new transaction is simply created — no DB status changes needed.
+// ResolveTransaction is the single entry-point for routing an incoming event to a transaction.
+//
+// Puller path — externalID != nil:
+//   - Validates the transaction exists and belongs to gateID.
+//   - On success: best-effort TTL refresh, returns the existing ID (even if tx_active has rotated).
+//   - On failure: logs a warning and falls back to the normal gate-scoped flow.
+//
+// Normal path — externalID == nil:
+//   - Finds the active transaction for the gate via Valkey, or creates a fresh one.
+//   - Enforces max-events-per-transaction: rotates to a new transaction when the limit is hit.
+func ResolveTransaction(ctx context.Context, gateID string, externalID *uuid.UUID) uuid.UUID {
+	if externalID != nil && *externalID != uuid.Nil {
+		tx := repository.GetTransactionRaw(*externalID)
+		if tx != nil && tx.GateID == gateID {
+			// Best-effort TTL refresh — keeps the gate's active key alive while the Puller lands.
+			repository.RDB.Expire(ctx, ActiveTxKey(gateID), GateTTL(gateID))
+			return tx.ID
+		}
+		log.Printf("matchmaker: external tx %s not found or gate mismatch (want %s) — creating new", externalID, gateID)
+	}
+
+	return findOrCreateActive(ctx, gateID)
+}
+
+// FindOrCreateTransaction is kept for call sites that have no ctx or external ID.
 func FindOrCreateTransaction(gateID string) uuid.UUID {
-	ctx := context.Background()
+	return findOrCreateActive(context.Background(), gateID)
+}
+
+// findOrCreateActive finds or creates the currently active transaction for a gate,
+// rotating to a fresh one when the max-events limit is reached.
+func findOrCreateActive(ctx context.Context, gateID string) uuid.UUID {
 	key := ActiveTxKey(gateID)
 	ttl := GateTTL(gateID)
 
 	if val, err := repository.RDB.Get(ctx, key).Result(); err == nil {
-		repository.RDB.Expire(ctx, key, ttl)
-		if id, parseErr := uuid.Parse(val); parseErr == nil {
+		if id, parseErr := uuid.Parse(val); parseErr == nil && id != uuid.Nil {
+			// Enforce max events before handing out the same transaction again.
+			if max := MaxEventsForGate(gateID); max > 0 {
+				if repository.CountEventsForTransaction(id) >= int64(max) {
+					repository.RDB.Del(ctx, key)
+					return newTransaction(ctx, gateID, key, ttl)
+				}
+			}
+			repository.RDB.Expire(ctx, key, ttl)
 			return id
 		}
 	}
 
-	code := generateTransactionCode(gateID)
-	newTx := &models.Transaction{
-		Code:   code,
-		GateID: gateID,
-	}
-	savedTx := repository.CreateTransaction(newTx)
-	repository.RDB.Set(ctx, key, savedTx.ID.String(), ttl)
-	return savedTx.ID
+	return newTransaction(ctx, gateID, key, ttl)
 }
 
-func generateTransactionCode(gateID string) string {
-	now := time.Now()
-	return fmt.Sprintf("TRK-%s-%04d%02d%02d-%06d",
-		gateID,
-		now.Year(),
-		now.Month(),
-		now.Day(),
-		now.Unix()%1000000,
-	)
+func newTransaction(ctx context.Context, gateID, key string, ttl time.Duration) uuid.UUID {
+	tx := repository.CreateTransaction(&models.Transaction{
+		Code:   generateTransactionCode(gateID),
+		GateID: gateID,
+	})
+	repository.RDB.Set(ctx, key, tx.ID.String(), ttl)
+	return tx.ID
 }

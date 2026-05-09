@@ -31,6 +31,9 @@ func GetGateByGateID(gateID string) *models.Gate {
 }
 
 func CreateGate(gate *models.Gate) *models.Gate {
+	if gate.ID == uuid.Nil {
+		gate.ID = uuid.New()
+	}
 	DB.Create(gate)
 	return gate
 }

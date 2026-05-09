@@ -12,6 +12,9 @@ func ListDeviceConfigs() []models.DeviceConfig {
 }
 
 func CreateDeviceConfig(config *models.DeviceConfig) *models.DeviceConfig {
+	if config.ID == uuid.Nil {
+		config.ID = uuid.New()
+	}
 	DB.Create(config)
 	return config
 }

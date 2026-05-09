@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { page as pageStore } from '$app/stores';
+  import { page as pageState } from '$app/state';
   import { get } from 'svelte/store';
   import { toast } from 'svelte-sonner';
   import TopBar from '$lib/components/TopBar.svelte';
@@ -20,7 +20,7 @@
 
   const PAGE_LIMIT = 20;
 
-  const _initialPage = get(pageStore);
+  const _initialPage = pageState;
   let transactions = $state<Transaction[]>([]);
   let total        = $state(0);
   let page         = $state(1);

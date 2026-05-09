@@ -9,12 +9,13 @@
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '$lib/components/ui/table/index.js';
   import { api } from '$lib/api.js';
   import type { APIKey, DeviceConfig, Gate } from '$lib/types.js';
-  import { Plus, Settings } from 'lucide-svelte';
+  import { Plus, Settings, Zap } from 'lucide-svelte';
 
-  let configs = $state<DeviceConfig[]>([]);
-  let gates   = $state<Gate[]>([]);
-  let apiKeys = $state<APIKey[]>([]);
-  let loading = $state(true);
+  let configs    = $state<DeviceConfig[]>([]);
+  let gates      = $state<Gate[]>([]);
+  let apiKeys    = $state<APIKey[]>([]);
+  let loading    = $state(true);
+  let triggeringId = $state('');
 
   $effect(() => {
     (async () => {
@@ -33,6 +34,19 @@
   function deviceName(cfg: DeviceConfig): string {
     const key = apiKeys.find(k => String(k.id) === cfg.source_id);
     return key?.owner_name ?? cfg.source_id;
+  }
+
+  async function handleTrigger(e: MouseEvent, cfgId: string) {
+    e.stopPropagation();
+    triggeringId = cfgId;
+    try {
+      await api.configs.trigger(cfgId);
+      toast.success('Тригер(и) запущено');
+    } catch {
+      toast.error('Помилка запуску тригера');
+    } finally {
+      triggeringId = '';
+    }
   }
 </script>
 
@@ -55,13 +69,15 @@
           <TableHead class="hidden md:table-cell w-[120px] text-muted-foreground text-xs">Source ID</TableHead>
           <TableHead class="hidden sm:table-cell w-[160px]">Шлагбаум</TableHead>
           <TableHead class="hidden sm:table-cell w-[150px]">Тип події</TableHead>
-          <TableHead class="hidden md:table-cell w-[120px]">Тригер</TableHead>
+          <TableHead class="hidden md:table-cell w-[140px]">Тригери</TableHead>
           <TableHead class="w-[90px]">Статус</TableHead>
-          <TableHead class="w-[48px]"></TableHead>
+          <TableHead class="w-[88px]"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {#each configs as cfg (cfg.id)}
+          {@const triggerCount = (cfg.triggers ?? []).filter(t => t.source_id).length}
+          {@const isTriggering = triggeringId === cfg.id}
           <TableRow class="cursor-pointer" onclick={() => goto(`/settings/devices/${cfg.id}`)}>
             <TableCell class="font-medium">{deviceName(cfg)}</TableCell>
             <TableCell class="hidden md:table-cell font-mono text-xs text-muted-foreground">{cfg.source_id}</TableCell>
@@ -77,12 +93,10 @@
               {/if}
             </TableCell>
             <TableCell class="hidden md:table-cell">
-              {@const triggeredBy = configs.find(c => c.trigger_source_id === cfg.source_id && c.source_id !== cfg.source_id)}
-              {@const triggers = cfg.trigger_source_id ? configs.find(c => c.source_id === cfg.trigger_source_id) : null}
-              {#if triggers}
-                <span class="text-sm font-mono text-muted-foreground">→ {deviceName(triggers)}</span>
-              {:else if triggeredBy}
-                <span class="text-sm font-mono text-muted-foreground">← {deviceName(triggeredBy)}</span>
+              {#if cfg.trigger_enabled && triggerCount > 0}
+                <span class="text-sm text-muted-foreground font-mono">
+                  → {triggerCount} {triggerCount === 1 ? 'пристрій' : 'пристрої'}
+                </span>
               {:else if cfg.trigger_enabled}
                 <Badge variant="outline" class="text-xs">URL</Badge>
               {:else}
@@ -94,8 +108,25 @@
                 {cfg.enabled ? 'Активний' : 'Вимкнений'}
               </Badge>
             </TableCell>
-            <TableCell>
-              <Button variant="ghost" size="icon-sm"><Settings size={15} /></Button>
+            <TableCell class="flex items-center gap-1">
+              {#if cfg.trigger_enabled && triggerCount > 0}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Запустити тригер"
+                  disabled={isTriggering}
+                  onclick={(e: MouseEvent) => handleTrigger(e, cfg.id)}
+                >
+                  <Zap size={15} class={isTriggering ? 'animate-pulse text-primary' : 'text-muted-foreground'} />
+                </Button>
+              {/if}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onclick={(e: MouseEvent) => { e.stopPropagation(); goto(`/settings/devices/${cfg.id}`); }}
+              >
+                <Settings size={15} />
+              </Button>
             </TableCell>
           </TableRow>
         {/each}

@@ -5,9 +5,12 @@ import (
 	"github.com/omnigate/services/core/src/models"
 )
 
-func CreateEventType(eventType *models.EventType) *models.EventType {
-	DB.Create(eventType)
-	return eventType
+func CreateEventType(t *models.EventType) *models.EventType {
+	if t.ID == uuid.Nil {
+		t.ID = uuid.New()
+	}
+	DB.Create(t)
+	return t
 }
 
 func ListEventTypes() []models.EventType {

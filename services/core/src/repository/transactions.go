@@ -9,6 +9,9 @@ import (
 )
 
 func CreateTransaction(tx *models.Transaction) *models.Transaction {
+	if tx.ID == uuid.Nil {
+		tx.ID = uuid.New()
+	}
 	DB.Create(tx)
 	return tx
 }
@@ -19,6 +22,16 @@ func GetTransaction(id uuid.UUID) *models.Transaction {
 		return nil
 	}
 	setOpenStatus(&tx)
+	return &tx
+}
+
+// GetTransactionRaw fetches only id and gate_id — used by the matchmaker for
+// lightweight existence and gate-ownership checks without loading events.
+func GetTransactionRaw(id uuid.UUID) *models.Transaction {
+	var tx models.Transaction
+	if err := DB.Select("id", "gate_id").First(&tx, id).Error; err != nil {
+		return nil
+	}
 	return &tx
 }
 

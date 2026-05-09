@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
@@ -52,21 +51,9 @@ func HandleCreateEvent(c *gin.Context) {
 		return
 	}
 
-	// Determine transaction
-	var transactionID uuid.UUID
-	if req.TransactionID != nil {
-		// Transaction provided by Puller
-		transactionID = *req.TransactionID
-	} else {
-		transactionID = logic.FindOrCreateTransaction(req.GateID)
-		// Enforce max events per transaction
-		if max := logic.MaxEventsForGate(req.GateID); max > 0 {
-			if repository.CountEventsForTransaction(transactionID) >= int64(max) {
-				repository.RDB.Del(context.Background(), logic.ActiveTxKey(req.GateID))
-				transactionID = logic.FindOrCreateTransaction(req.GateID)
-			}
-		}
-	}
+	// Determine transaction — delegates all routing logic (Puller validation,
+	// max-events enforcement, TTL refresh) to the matchmaker.
+	transactionID := logic.ResolveTransaction(c.Request.Context(), req.GateID, req.TransactionID)
 
 	span.SetAttributes(attribute.String("truckguard.transaction_id", transactionID.String()))
 
