@@ -50,7 +50,7 @@ func HandleIngest(c *gin.Context) {
 
 	ct := c.ContentType() // base MIME type, no params (Gin strips them)
 
-	if ct == "multipart/form-data" {
+	if ct == "multipart/form-data" || ct == "application/x-www-form-urlencoded" {
 		assumedSourceID = c.PostForm("source_id")
 		assumedGateID = c.PostForm("gate_id")
 		transactionID = c.PostForm("transaction_id")
@@ -58,8 +58,13 @@ func HandleIngest(c *gin.Context) {
 		payload = c.PostForm("payload")
 		if payload == "" {
 			// No explicit payload field — serialise all other text fields to JSON.
-			// ParseMultipartForm is idempotent; Gin already called it via PostForm.
-			if err := c.Request.ParseMultipartForm(32 << 20); err == nil {
+			var formErr error
+			if ct == "multipart/form-data" {
+				formErr = c.Request.ParseMultipartForm(32 << 20)
+			} else {
+				formErr = c.Request.ParseForm()
+			}
+			if formErr == nil {
 				fields := make(map[string]any)
 				for k, vs := range c.Request.PostForm {
 					if k != "source_id" && k != "gate_id" && k != "transaction_id" && len(vs) > 0 {

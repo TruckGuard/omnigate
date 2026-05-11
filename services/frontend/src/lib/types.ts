@@ -50,7 +50,6 @@ export interface Event {
   gate_id: string;
   source_id: string;
   data: Record<string, unknown>;
-  raw_payload?: string;
   raw_data_key: string;
   image_keys: string[] | null;
   // Матеріалізовані поля (заповнюються BeforeSave хуком на бекенді)

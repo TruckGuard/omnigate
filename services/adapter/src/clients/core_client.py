@@ -33,7 +33,6 @@ class CoreClient:
         raw_data_key: str,
         image_keys: list = None,
         transaction_id: Optional[str] = None,
-        raw_payload: str = "",
     ) -> Dict:
         """Create an event in CORE service."""
         url = f"{self.base_url}/events"
@@ -43,7 +42,6 @@ class CoreClient:
             "gate_id": gate_id,
             "source_id": source_id,
             "data": data,
-            "raw_payload": raw_payload,
             "raw_data_key": raw_data_key,
             "image_keys": image_keys or [],
         }

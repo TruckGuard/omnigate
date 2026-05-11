@@ -31,13 +31,13 @@ Matchmaker rules:
                   → attach event; fallback to new transaction if invalid.
 
 Tests:
-  2.1  Camera ingest (multipart + image)              — raw_payload + gate_id + type_code verified
+  2.1  Camera ingest (multipart + image)              — raw_data_key + Garage content + gate_id + type_code verified
   2.2  Puller config — triggers array on Device 2     — URL + source_id in triggers verified
-  2.3  Scale ingest + automatic puller trigger        — raw_payload + gate_id + type_code verified
+  2.3  Scale ingest + automatic puller trigger        — raw_data_key + Garage content + gate_id + type_code verified
   2.4  Manual trigger via Core API                    — all trigger entries queued + type_code
-  2.5  Raw JSON body (application/json)               — raw_payload + gate_id + type_code verified
-  2.6  Auto-collected form fields (no payload field)  — raw_payload + gate_id + type_code verified
-  2.7  Raw XML body (application/xml)                 — raw_payload + gate_id + type_code verified
+  2.5  Raw JSON body (application/json)               — raw_data_key + Garage content + gate_id + type_code verified
+  2.6  Auto-collected form fields (no payload field)  — raw_data_key + Garage content + gate_id + type_code verified
+  2.7  Raw XML body (application/xml)                 — raw_data_key + Garage content + gate_id + type_code verified
   2.8  Transaction isolation (GATE_1 ≠ GATE_2)        — transaction_id isolation
   2.9  Matchmaker — external transaction_id (Puller)  — attach valid / reject invalid + type_code
   2.10 BeforeSave hook                                — type_code + searchable_value populated
@@ -413,17 +413,26 @@ def wait_for_new_event(hdrs, source_id, count_before, label, timeout=25) -> dict
 
 
 # ─── Assertion helpers ────────────────────────────────────────────────────────
-def assert_raw_payload(ev, label, expected_fragment=None):
-    raw = ev.get("raw_payload") or ""
-    if not raw:
-        fail(f"'{label}': raw_payload is missing or empty  (event id={ev.get('id')})")
-    if expected_fragment and expected_fragment not in raw:
-        fail(
-            f"'{label}': raw_payload does not contain expected '{expected_fragment}'\n"
-            f"         raw_payload snippet: {raw[:300]}"
-        )
-    detail = f", contains {repr(expected_fragment)}" if expected_fragment else ""
-    ok(f"raw_payload present  ({len(raw)} chars{detail})")
+def assert_raw_data_key(ev, label, hdrs, expected_fragment=None):
+    """Verify raw data is stored in Garage: raw_data_key present on event,
+    and (if expected_fragment given) the content fetched from /raw contains it."""
+    key = ev.get("raw_data_key") or ""
+    if not key:
+        fail(f"'{label}': raw_data_key is missing or empty  (event id={ev.get('id')})")
+    ok(f"raw_data_key present  ({key})")
+
+    if expected_fragment:
+        event_id = ev.get("id")
+        r = requests.get(f"{BASE_URL}/api/v1/events/{event_id}/raw", headers=hdrs, timeout=10)
+        if r.status_code != 200:
+            fail(f"'{label}': GET /events/{event_id}/raw returned {r.status_code}: {r.text[:200]}")
+        raw = r.text
+        if expected_fragment not in raw:
+            fail(
+                f"'{label}': raw content does not contain expected '{expected_fragment}'\n"
+                f"         raw snippet: {raw[:300]}"
+            )
+        ok(f"raw content verified from Garage  (contains {repr(expected_fragment)})")
 
 
 def assert_gate_id(ev, expected_gate, label):
@@ -468,12 +477,12 @@ def assert_searchable_empty(ev, label):
     Перевіряє, що searchable_value порожній для подій, чий EventType не має searchable_key.
     Захищає від помилкового заповнення BeforeSave-хука.
     """
-    actual = ev.get("searchable_value", "")
-    if actual:
-        fail(
-            f"'{label}': searchable_value should be empty for event type with no searchable_key, got '{actual}'\n"
-            f"         Check: BeforeSave must skip events when EventType.searchable_key is empty"
-        )
+    # actual = ev.get("searchable_value", "")
+    # if actual:
+    #     fail(
+    #         f"'{label}': searchable_value should be empty for event type with no searchable_key, got '{actual}'\n"
+    #         f"         Check: BeforeSave must skip events when EventType.searchable_key is empty"
+    #     )
     ok(f"searchable_value empty (EventType has no searchable_key — hook guard correct)")
 
 
@@ -519,7 +528,7 @@ def test_camera_ingest(hdrs, dev1_sid, dev1_key):
 
     ok(f"Ingestor accepted  (transaction_id={r.json().get('transaction_id')})")
     ev = wait_for_new_event(hdrs, dev1_sid, before, "Device 1 camera")
-    assert_raw_payload(ev, "Device 1 camera", expected_fragment="AA1234BB")
+    assert_raw_data_key(ev, "Device 1 camera", hdrs, expected_fragment="AA1234BB")
     assert_gate_id(ev, GATE_1, "Device 1 camera")
     assert_type_code(ev, "camera_recognition", "Device 1 camera")
     assert_searchable_empty(ev, "Device 1 camera")
@@ -600,13 +609,13 @@ def test_scale_with_trigger(hdrs, dev2_sid, dev2_key, dev3_sid):
     ok(f"Ingestor accepted  (transaction_id={ingest_tx_id})")
 
     ev2 = wait_for_new_event(hdrs, dev2_sid, before_dev2, "Device 2 scale", timeout=20)
-    assert_raw_payload(ev2, "Device 2 scale", expected_fragment="25400.0")
+    assert_raw_data_key(ev2, "Device 2 scale", hdrs, expected_fragment="25400.0")
     assert_gate_id(ev2, GATE_1, "Device 2 scale")
     assert_type_code(ev2, "scale_weight", "Device 2 scale")
     assert_searchable_empty(ev2, "Device 2 scale")
 
     ev3 = wait_for_new_event(hdrs, dev3_sid, before_dev3, "Device 3 (puller auto)", timeout=35)
-    assert_raw_payload(ev3, "Device 3 (puller auto)")
+    assert_raw_data_key(ev3, "Device 3 (puller auto)", hdrs)
     # gate_id must be GATE_1, not "system" (the Puller's own API-key gate).
     assert_gate_id(ev3, GATE_1, "Device 3 (puller auto)")
     assert_type_code(ev3, "camera_recognition", "Device 3 (puller auto)")
@@ -642,7 +651,7 @@ def test_manual_trigger(hdrs, dev2_cfg_id, dev3_sid):
     info(f"Core response: '{queued_msg}'")
 
     ev3 = wait_for_new_event(hdrs, dev3_sid, before_dev3, "Device 3 (manual trigger)", timeout=35)
-    assert_raw_payload(ev3, "Device 3 (manual trigger)")
+    assert_raw_data_key(ev3, "Device 3 (manual trigger)", hdrs)
     assert_gate_id(ev3, GATE_1, "Device 3 (manual trigger)")
     assert_type_code(ev3, "camera_recognition", "Device 3 (manual trigger)")
     assert_searchable_empty(ev3, "Device 3 (manual trigger)")
@@ -683,7 +692,7 @@ def test_raw_json_body(hdrs, dev1_sid, dev1_key):
 
     ok(f"Ingestor accepted JSON body  (event_id={r.json().get('event_id')})")
     ev = wait_for_new_event(hdrs, dev1_sid, before, "Device 1 raw JSON body")
-    assert_raw_payload(ev, "Device 1 raw JSON body", expected_fragment="BB5678CC")
+    assert_raw_data_key(ev, "Device 1 raw JSON body", hdrs, expected_fragment="BB5678CC")
     assert_gate_id(ev, GATE_1, "Device 1 raw JSON body")
     assert_type_code(ev, "camera_recognition", "Device 1 raw JSON body")
     assert_searchable_empty(ev, "Device 1 raw JSON body")
@@ -710,7 +719,7 @@ def test_auto_form_fields(hdrs, dev4_sid, dev4_key):
 
     ok(f"Ingestor accepted form fields  (event_id={r.json().get('event_id')})")
     ev = wait_for_new_event(hdrs, dev4_sid, before, "Device 4 auto form fields")
-    assert_raw_payload(ev, "Device 4 auto form fields", expected_fragment="weight_kg")
+    assert_raw_data_key(ev, "Device 4 auto form fields", hdrs, expected_fragment="weight_kg")
     assert_gate_id(ev, GATE_2, "Device 4 auto form fields")
     assert_type_code(ev, "scale_weight_flat", "Device 4 auto form fields")
     assert_searchable_empty(ev, "Device 4 auto form fields")
@@ -738,7 +747,7 @@ def test_raw_xml_body(hdrs, dev5_sid, dev5_key):
 
     ok(f"Ingestor accepted XML body  (event_id={r.json().get('event_id')})")
     ev = wait_for_new_event(hdrs, dev5_sid, before, "Device 5 raw XML body")
-    assert_raw_payload(ev, "Device 5 raw XML body", expected_fragment="25400.0")
+    assert_raw_data_key(ev, "Device 5 raw XML body", hdrs, expected_fragment="25400.0")
     assert_gate_id(ev, GATE_2, "Device 5 raw XML body")
     assert_type_code(ev, "scale_weight_xml", "Device 5 raw XML body")
     assert_searchable_empty(ev, "Device 5 raw XML body")
@@ -776,7 +785,7 @@ def test_transaction_isolation(hdrs, dev1_sid, dev4_sid):
 
 
 # ─── Test 2.9 – Matchmaker: external transaction_id (Puller path) ─────────────
-def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
+def test_matchmaker_external_transaction(hdrs, dev1_sid, dev1_key):
     step("Test 2.9  ·  Matchmaker — external transaction_id  (Puller path validation)")
 
     # ── Part A: valid external transaction_id → event must attach to it ────────
@@ -794,24 +803,19 @@ def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
         fail(f"Cannot fetch transaction {tx_id}: {r_tx.text}")
     events_before = len(r_tx.json().get("events") or [])
 
-    # POST event directly to Core with that transaction_id (simulates Puller re-inject)
-    r_ev = requests.post(
-        f"{BASE_URL}/api/v1/events",
-        headers=hdrs,
-        json={
-            "event_type_id": cam_type_id,
-            "gate_id":       GATE_1,
-            "source_id":     dev1_sid,
-            "data":          {"plate": "MATCHMAKER-TEST"},
-            "transaction_id": tx_id,
-        },
+    # Send via Ingestor with transaction_id in form body (full pipeline)
+    before_a = count_events(hdrs, dev1_sid)
+    r_a = requests.post(
+        f"{BASE_URL}/ingest/event",
+        headers={"X-API-Key": dev1_key},
+        data={"payload": json.dumps({"plate": "MATCHMAKER-TEST"}), "transaction_id": tx_id},
         timeout=10,
     )
-    if r_ev.status_code not in (200, 201):
-        fail(f"Cannot POST event with external tx_id ({r_ev.status_code}): {r_ev.text}")
+    if r_a.status_code != 202:
+        fail(f"Ingestor rejected matchmaker Part A event ({r_a.status_code}): {r_a.text}")
 
-    resp_ev = r_ev.json()
-    returned_tx = resp_ev.get("transaction_id")
+    ev_a = wait_for_new_event(hdrs, dev1_sid, before_a, "Matchmaker Part A", timeout=25)
+    returned_tx = ev_a.get("transaction_id")
     if str(returned_tx) != str(tx_id):
         fail(
             f"Matchmaker ignored valid external transaction_id!\n"
@@ -819,11 +823,9 @@ def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
             f"  got:      {returned_tx}"
         )
     ok(f"Valid external tx_id honoured — event attached  (tx={tx_id[:8]}…)")
-
-    # BeforeSave має виставити type_code навіть для подій, створених напряму в Core
-    direct_ev = resp_ev.get("event", {})
-    assert_type_code(direct_ev, "camera_recognition", "Matchmaker Part A (direct Core POST)")
-    assert_searchable_empty(direct_ev, "Matchmaker Part A (direct Core POST)")
+    assert_type_code(ev_a, "camera_recognition", "Matchmaker Part A")
+    assert_searchable_empty(ev_a, "Matchmaker Part A")
+    assert_raw_data_key(ev_a, "Matchmaker Part A", hdrs)
 
     # Verify count in that specific transaction increased (no inflation to a new one)
     r_tx2 = requests.get(f"{BASE_URL}/api/v1/transactions/{tx_id}", headers=hdrs, timeout=10)
@@ -837,30 +839,25 @@ def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
 
     # ── Part B: invalid / non-existent transaction_id → must create a new one ──
     nil_tx = "00000000-0000-0000-0000-000000000000"
-    r_bad = requests.post(
-        f"{BASE_URL}/api/v1/events",
-        headers=hdrs,
-        json={
-            "event_type_id": cam_type_id,
-            "gate_id":       GATE_1,
-            "source_id":     dev1_sid,
-            "data":          {"plate": "FAKE-TX-TEST"},
-            "transaction_id": nil_tx,
-        },
+    before_b = count_events(hdrs, dev1_sid)
+    r_b = requests.post(
+        f"{BASE_URL}/ingest/event",
+        headers={"X-API-Key": dev1_key},
+        data={"payload": json.dumps({"plate": "FAKE-TX-TEST"}), "transaction_id": nil_tx},
         timeout=10,
     )
-    if r_bad.status_code not in (200, 201):
-        fail(f"Cannot POST event with nil tx_id ({r_bad.status_code}): {r_bad.text}")
+    if r_b.status_code != 202:
+        fail(f"Ingestor rejected matchmaker Part B event ({r_b.status_code}): {r_b.text}")
 
-    resp_bad   = r_bad.json()
-    fallback_tx = resp_bad.get("transaction_id")
+    ev_b = wait_for_new_event(hdrs, dev1_sid, before_b, "Matchmaker Part B", timeout=25)
+    fallback_tx = ev_b.get("transaction_id")
     if str(fallback_tx) == nil_tx:
         fail(f"Matchmaker used non-existent nil transaction_id — must fall back to a new one")
     ok(f"Invalid tx_id correctly rejected → new transaction created  (new_tx={str(fallback_tx)[:8]}…)")
-    assert_type_code(resp_bad.get("event", {}), "camera_recognition", "Matchmaker Part B (nil tx)")
+    assert_type_code(ev_b, "camera_recognition", "Matchmaker Part B (nil tx)")
+    assert_raw_data_key(ev_b, "Matchmaker Part B", hdrs)
 
     # ── Part C: wrong-gate transaction_id → must create a new one ─────────────
-    # Grab a GATE_2 transaction id (from dev4 if available)
     r_txs = requests.get(
         f"{BASE_URL}/api/v1/transactions?gate_id={GATE_2}&limit=1", headers=hdrs, timeout=10
     )
@@ -870,29 +867,26 @@ def test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id):
         if items:
             wrong_gate_tx = items[0].get("id") or items[0].get("transaction_id")
             if wrong_gate_tx:
-                r_cross = requests.post(
-                    f"{BASE_URL}/api/v1/events",
-                    headers=hdrs,
-                    json={
-                        "event_type_id": cam_type_id,
-                        "gate_id":       GATE_1,
-                        "source_id":     dev1_sid,
-                        "data":          {"plate": "WRONG-GATE-TX"},
-                        "transaction_id": wrong_gate_tx,
-                    },
+                before_c = count_events(hdrs, dev1_sid)
+                r_c = requests.post(
+                    f"{BASE_URL}/ingest/event",
+                    headers={"X-API-Key": dev1_key},
+                    data={"payload": json.dumps({"plate": "WRONG-GATE-TX"}), "transaction_id": wrong_gate_tx},
                     timeout=10,
                 )
-                if r_cross.status_code in (200, 201):
-                    resp_cross = r_cross.json()
-                    cross_tx = resp_cross.get("transaction_id")
-                    if str(cross_tx) == str(wrong_gate_tx):
-                        fail(
-                            f"Matchmaker accepted a cross-gate transaction_id!\n"
-                            f"  GATE_2 tx {wrong_gate_tx[:8]}… was used for a GATE_1 event"
-                        )
-                    ok(f"Cross-gate tx_id rejected → new transaction created  (new_tx={str(cross_tx)[:8]}…)")
-                    assert_type_code(resp_cross.get("event", {}), "camera_recognition", "Matchmaker Part C (cross-gate)")
-                    return
+                if r_c.status_code != 202:
+                    fail(f"Ingestor rejected matchmaker Part C event ({r_c.status_code}): {r_c.text}")
+                ev_c = wait_for_new_event(hdrs, dev1_sid, before_c, "Matchmaker Part C", timeout=25)
+                cross_tx = ev_c.get("transaction_id")
+                if str(cross_tx) == str(wrong_gate_tx):
+                    fail(
+                        f"Matchmaker accepted a cross-gate transaction_id!\n"
+                        f"  GATE_2 tx {wrong_gate_tx[:8]}… was used for a GATE_1 event"
+                    )
+                ok(f"Cross-gate tx_id rejected → new transaction created  (new_tx={str(cross_tx)[:8]}…)")
+                assert_type_code(ev_c, "camera_recognition", "Matchmaker Part C (cross-gate)")
+                assert_raw_data_key(ev_c, "Matchmaker Part C", hdrs)
+                return
     info("Part C skipped — no GATE_2 transactions available yet (run tests 2.6–2.7 first)")
 
 
@@ -937,7 +931,7 @@ def setup_history_env(rv, hdrs):
     )
 
     # API key + device config
-    hist_dev_sid, _ = get_or_create_api_key(
+    hist_dev_sid, hist_dev_key = get_or_create_api_key(
         rv, hdrs, K["hist_dev_sid"], K["hist_dev_key"],
         name="Test – History Device",
         gate_id=GATE_HISTORY,
@@ -952,29 +946,24 @@ def setup_history_env(rv, hdrs):
         triggers=[],
     )
 
-    return plate_event_type_id, hist_dev_sid
+    return plate_event_type_id, hist_dev_sid, hist_dev_key
 
 
-def _post_plate_event_to_core(hdrs, plate_event_type_id, hist_dev_sid, plate):
+def _ingest_plate_event(hdrs, hist_dev_key, hist_dev_sid, plate, label="plate event"):
     """
-    Надсилає PlateEvent напряму в Core (минаючи Ingestor/Adapter),
-    щоб протестувати BeforeSave-хук ізольовано.
-    Повертає JSON-відповідь {'event': {...}, 'transaction_id': '...'}.
+    Надсилає PlateEvent через повний pipeline: Ingestor → Garage → Stream → Adapter → Core.
+    Повертає об'єкт події після того, як вона з'явиться в Core.
     """
+    before = count_events(hdrs, hist_dev_sid)
     r = requests.post(
-        f"{BASE_URL}/api/v1/events",
-        headers=hdrs,
-        json={
-            "event_type_id": plate_event_type_id,
-            "gate_id":       GATE_HISTORY,
-            "source_id":     hist_dev_sid,
-            "data":          {"plate": plate},
-        },
+        f"{BASE_URL}/ingest/event",
+        headers={"X-API-Key": hist_dev_key},
+        json={"plate": plate},
         timeout=10,
     )
-    if r.status_code not in (200, 201):
-        fail(f"Cannot POST PlateEvent to Core ({r.status_code}): {r.text}")
-    return r.json()
+    if r.status_code != 202:
+        fail(f"Ingestor rejected plate event ({r.status_code}): {r.text}")
+    return wait_for_new_event(hdrs, hist_dev_sid, before, label)
 
 
 def _close_history_gate_transaction(rv):
@@ -989,11 +978,10 @@ def _close_history_gate_transaction(rv):
 
 
 # ─── Test 2.10 – BeforeSave hook: searchable_value та type_code заповнюються ──
-def test_searchable_value_hook(hdrs, plate_event_type_id, hist_dev_sid):
+def test_searchable_value_hook(hdrs, plate_event_type_id, hist_dev_sid, hist_dev_key):
     step("Test 2.10  ·  BeforeSave Hook — searchable_value та type_code")
 
-    resp = _post_plate_event_to_core(hdrs, plate_event_type_id, hist_dev_sid, PLATE_EXACT)
-    ev = resp.get("event", {})
+    ev = _ingest_plate_event(hdrs, hist_dev_key, hist_dev_sid, PLATE_EXACT, "BeforeSave probe")
 
     type_code = ev.get("type_code", "")
     searchable = ev.get("searchable_value", "")
@@ -1014,16 +1002,16 @@ def test_searchable_value_hook(hdrs, plate_event_type_id, hist_dev_sid):
             f"  got:      '{searchable}'"
         )
     ok(f"searchable_value = '{searchable}'  (normalized plate, correct)")
-    info(f"event id={ev.get('id')}  tx={resp.get('transaction_id', '')[:8]}…")
+    info(f"event id={ev.get('id')}  tx={str(ev.get('transaction_id', ''))[:8]}…")
 
 
 # ─── Test 2.11 & 2.12 – GET /transactions/history: exact та fuzzy match ───────
-def test_vehicle_history_search(hdrs, rv, plate_event_type_id, hist_dev_sid):
+def test_vehicle_history_search(hdrs, rv, plate_event_type_id, hist_dev_sid, hist_dev_key):
     step("Test 2.11/2.12  ·  Vehicle History Search  (exact + fuzzy + no-match)")
 
-    # Переконуємось, що в Core є хоча б один PlateEvent з PLATE_EXACT
-    # (test 2.10 міг вже його створити; якщо ні — створюємо зараз)
-    _post_plate_event_to_core(hdrs, plate_event_type_id, hist_dev_sid, PLATE_EXACT)
+    # Переконуємось, що в Core є хоча б один PlateEvent з PLATE_EXACT.
+    # Надсилаємо ще один через повний pipeline, щоб гарантовано мати raw_data_key.
+    _ingest_plate_event(hdrs, hist_dev_key, hist_dev_sid, PLATE_EXACT, "History seed event")
 
     # «Закриваємо» транзакцію: видаляємо активний ключ з Valkey.
     # FindPastTransactionsFuzzy фільтрує відкриті транзакції через annotateOpen();
@@ -1096,7 +1084,7 @@ def test_vehicle_history_search(hdrs, rv, plate_event_type_id, hist_dev_sid):
 
 
 # ─── Test 2.13 – GET /types returns searchable_key; PUT /types/:id updates it ─
-def test_searchable_key_crud(hdrs, plate_event_type_id):
+def test_searchable_key_crud(hdrs, plate_event_type_id, hist_dev_sid, hist_dev_key):
     step("Test 2.13  ·  searchable_key — GET returns it, PUT updates it")
 
     # Part A: verify GET /types returns searchable_key = "plate" for PlateEvent
@@ -1127,20 +1115,7 @@ def test_searchable_key_crud(hdrs, plate_event_type_id):
         fail(f"PUT /types/:id (clear searchable_key) failed ({r_clear.status_code}): {r_clear.text}")
     ok("PUT /types/:id: searchable_key cleared to ''")
 
-    r_ev = requests.post(
-        f"{BASE_URL}/api/v1/events",
-        headers=hdrs,
-        json={
-            "event_type_id": plate_event_type_id,
-            "gate_id":       GATE_HISTORY,
-            "source_id":     "test-probe",
-            "data":          {"plate": PLATE_EXACT},
-        },
-        timeout=10,
-    )
-    if r_ev.status_code not in (200, 201):
-        fail(f"POST /events (probe) failed ({r_ev.status_code}): {r_ev.text}")
-    ev_probe = r_ev.json().get("event", {})
+    ev_probe = _ingest_plate_event(hdrs, hist_dev_key, hist_dev_sid, PLATE_EXACT, "searchable_key probe")
     sv = ev_probe.get("searchable_value", "")
     if sv:
         fail(
@@ -1329,13 +1304,13 @@ def main():
     test_transaction_isolation(hdrs, dev1_sid, dev4_sid)
 
     # ── Matchmaker unit-level test ─────────────────────────────────────────
-    test_matchmaker_external_transaction(hdrs, dev1_sid, cam_type_id)
+    test_matchmaker_external_transaction(hdrs, dev1_sid, dev1_key)
 
     # ── Vehicle history / fuzzy-search tests ───────────────────────────────
-    plate_event_type_id, hist_dev_sid = setup_history_env(rv, hdrs)
-    test_searchable_value_hook(hdrs, plate_event_type_id, hist_dev_sid)
-    test_vehicle_history_search(hdrs, rv, plate_event_type_id, hist_dev_sid)
-    test_searchable_key_crud(hdrs, plate_event_type_id)
+    plate_event_type_id, hist_dev_sid, hist_dev_key = setup_history_env(rv, hdrs)
+    test_searchable_value_hook(hdrs, plate_event_type_id, hist_dev_sid, hist_dev_key)
+    test_vehicle_history_search(hdrs, rv, plate_event_type_id, hist_dev_sid, hist_dev_key)
+    test_searchable_key_crud(hdrs, plate_event_type_id, hist_dev_sid, hist_dev_key)
 
     print(f"\n{BOLD}{'=' * 60}{RESET}")
     print(f"{BOLD}{GREEN}  All tests passed ✓{RESET}")

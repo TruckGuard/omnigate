@@ -79,9 +79,11 @@
   });
 
   $effect(() => {
-    Promise.all([api.gates.list(), api.types.list(), api.auth.keys.list(), api.configs.list()])
-      .then(([g, t, k, c]) => { gates = g; eventTypes = t; apiKeys = k; allConfigs = c; })
+    Promise.all([api.gates.list(), api.types.list(), api.configs.list()])
+      .then(([g, t, c]) => { gates = g; eventTypes = t; allConfigs = c; })
       .catch(() => {});
+    // API ключі — лише для відображення назви пристрою; відсутній read:keys не ламає форму.
+    api.auth.keys.list().then(k => { apiKeys = k; }).catch(() => {});
   });
 
   $effect(() => {

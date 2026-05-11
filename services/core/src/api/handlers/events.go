@@ -14,12 +14,38 @@ import (
 	"gorm.io/datatypes"
 )
 
+func HandleGetEventRaw(c *gin.Context) {
+	eventID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+	event := repository.GetEvent(eventID)
+	if event == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+		return
+	}
+	if event.RawDataKey == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No raw data for this event"})
+		return
+	}
+	if repository.StorageClient == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Storage not configured"})
+		return
+	}
+	data, contentType, err := repository.GetRawObject(event.RawDataKey)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Raw data not found in storage"})
+		return
+	}
+	c.Data(http.StatusOK, contentType, data)
+}
+
 type CreateEventRequest struct {
 	EventTypeID   uuid.UUID      `json:"event_type_id" binding:"required"`
 	GateID        string         `json:"gate_id" binding:"required"`
 	SourceID      string         `json:"source_id" binding:"required"`
 	Data          datatypes.JSON `json:"data" binding:"required"`
-	RawPayload    string         `json:"raw_payload"`
 	RawDataKey    string         `json:"raw_data_key"`
 	ImageKeys     []string       `json:"image_keys"`
 	TransactionID *uuid.UUID     `json:"transaction_id"` // Optional, from Puller
@@ -66,7 +92,6 @@ func HandleCreateEvent(c *gin.Context) {
 		GateID:        req.GateID,
 		SourceID:      req.SourceID,
 		Data:          req.Data,
-		RawPayload:    req.RawPayload,
 		RawDataKey:    req.RawDataKey,
 		ImageKeys:     datatypes.JSON(imgBytes),
 	}

@@ -128,6 +128,10 @@ services:
       - DATABASE_URL=postgres://${CORE_USER}:${CORE_PASSWORD}@db:5432/${CORE_DB_NAME}
       - VALKEY_ADDR=valkey:6379
       - PORT=8080
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
@@ -142,6 +146,8 @@ services:
         condition: service_healthy
       valkey:
         condition: service_healthy
+      garage:
+        condition: service_healthy
     volumes:
       - ../services/core:/app
 
@@ -154,10 +160,10 @@ services:
       - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
       - CORE_URL=http://gateway/api/v1
       - VALKEY_ADDR=valkey:6379
-      - STORAGE_ENDPOINT=garage:3900
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
       - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
-      - STORAGE_BUCKET=truckguard-data
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
     # No healthcheck needed for worker, but we wait for dependencies
     depends_on:

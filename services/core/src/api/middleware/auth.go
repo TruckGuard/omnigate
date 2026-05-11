@@ -18,7 +18,7 @@ func RequirePermission(permission string) gin.HandlerFunc {
 		perms := strings.Split(permsHeader, ",")
 		hasPerm := false
 		for _, p := range perms {
-			if p == permission || p == "admin" || p == "*" { // Basic check
+			if strings.TrimSpace(p) == permission {
 				hasPerm = true
 				break
 			}

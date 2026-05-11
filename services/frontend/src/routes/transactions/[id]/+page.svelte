@@ -77,6 +77,19 @@
     try { return JSON.stringify(JSON.parse(s), null, 2); }
     catch { return s; }
   }
+
+  // Lazy raw data: event id → fetched string (or null while loading)
+  let rawCache = $state<Record<string, string | null>>({});
+
+  async function loadRaw(eventId: string) {
+    if (eventId in rawCache) return;
+    rawCache[eventId] = null; // mark as loading
+    try {
+      rawCache[eventId] = await api.events.raw(eventId);
+    } catch {
+      rawCache[eventId] = '(помилка завантаження)';
+    }
+  }
 </script>
 
 <TopBar crumbs={["OmniGate", "Транзакції", tx?.code ?? "…"]}>
@@ -216,13 +229,19 @@
                         </div>
                       {/if}
 
-                      <!-- Raw payload collapsible -->
-                      {#if ev.raw_payload}
-                        <details class="mt-2">
+                      <!-- Raw payload collapsible — lazy loaded from Garage/S3 -->
+                      {#if ev.raw_data_key}
+                        <details class="mt-2" ontoggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) loadRaw(ev.id); }}>
                           <summary class="text-[11px] text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors inline-flex items-center gap-1">
                             Сирі дані
                           </summary>
-                          <pre class="mt-1.5 text-[10px] font-mono bg-muted rounded-md p-2.5 overflow-auto max-h-[160px] leading-relaxed">{tryFormatJson(ev.raw_payload)}</pre>
+                          {#if ev.id in rawCache}
+                            {#if rawCache[ev.id] === null}
+                              <p class="mt-1.5 text-[10px] text-muted-foreground pl-1">Завантаження…</p>
+                            {:else}
+                              <pre class="mt-1.5 text-[10px] font-mono bg-muted rounded-md p-2.5 overflow-auto max-h-[160px] leading-relaxed">{tryFormatJson(rawCache[ev.id]!)}</pre>
+                            {/if}
+                          {/if}
                         </details>
                       {/if}
 

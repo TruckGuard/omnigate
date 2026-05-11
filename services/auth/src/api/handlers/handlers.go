@@ -30,7 +30,7 @@ func HandleRegister(c *gin.Context) {
 		return
 	}
 
-	h, _ := bcrypt.GenerateFromPassword([]byte(b.Pass), 10)
+	h, _ := bcrypt.GenerateFromPassword([]byte(b.Pass), 12)
 
 	var role models.Role
 	roleName := b.Role
@@ -665,7 +665,7 @@ func HandleChangePassword(c *gin.Context) {
 		return
 	}
 
-	h, err := bcrypt.GenerateFromPassword([]byte(b.NewPass), 10)
+	h, err := bcrypt.GenerateFromPassword([]byte(b.NewPass), 12)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to generate password hash"})
 		return
@@ -691,7 +691,7 @@ func HandleAdminResetPassword(c *gin.Context) {
 		return
 	}
 
-	h, err := bcrypt.GenerateFromPassword([]byte(b.NewPass), 10)
+	h, err := bcrypt.GenerateFromPassword([]byte(b.NewPass), 12)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to generate password hash"})
 		return

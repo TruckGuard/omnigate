@@ -109,7 +109,7 @@ func EvaluateAccess(method, path string, userPerms []string) (bool, error) {
 	}
 	// Check if user has at least one of the required permissions
 	for _, rp := range reqPerms {
-		if rp == "" || HasPermission(userPerms, rp) {
+		if rp != "" && HasPermission(userPerms, rp) {
 			return true, nil
 		}
 	}
@@ -131,7 +131,7 @@ func ValidatePermissions(userPerms []string, targetPerms []string) error {
 
 func HasPermission(userPerms []string, required string) bool {
 	if required == "" {
-		return true
+		return false
 	}
 
 	for _, p := range userPerms {

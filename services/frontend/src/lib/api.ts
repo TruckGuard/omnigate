@@ -160,6 +160,13 @@ export const api = {
     },
     latestForSource: (sourceId: string) =>
       req<Event>(`/api/v1/events/latest?source_id=${encodeURIComponent(sourceId)}`),
+    raw: async (id: string): Promise<string> => {
+      const token = getToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`/api/v1/events/${id}/raw`, { headers });
+      if (!res.ok) throw new Error(`${res.status}`);
+      return res.text();
+    },
   },
 
   imageUrl: (key: string) => `/data/${key}`,

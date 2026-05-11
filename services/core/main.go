@@ -29,6 +29,14 @@ func main() {
 
 	repository.InitDB(os.Getenv("DATABASE_URL"))
 
+	if ep := os.Getenv("STORAGE_ENDPOINT"); ep != "" {
+		bucket := os.Getenv("STORAGE_BUCKET")
+		if bucket == "" {
+			bucket = "omnigate-data"
+		}
+		repository.InitStorage(ep, os.Getenv("STORAGE_ACCESS_KEY"), os.Getenv("STORAGE_SECRET_KEY"), bucket)
+	}
+
 	valkeyAddr := os.Getenv("VALKEY_ADDR")
 	if valkeyAddr == "" {
 		valkeyAddr = os.Getenv("REDIS_ADDR")
@@ -51,6 +59,7 @@ func main() {
 		api.GET("/events", handlers.HandleListEvents)
 		api.GET("/events/latest", handlers.HandleGetLatestEventForSource)
 		api.GET("/events/:id", handlers.HandleGetEvent)
+		api.GET("/events/:id/raw", handlers.HandleGetEventRaw)
 		api.DELETE("/events/:id", handlers.HandleDeleteEvent)
 
 		// Transactions

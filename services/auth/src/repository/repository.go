@@ -79,10 +79,14 @@ func CreateSession(userID uint, username, role, ip, userAgent string) (string, e
 }
 
 func GetSession(sessionID string) (map[string]interface{}, error) {
-	val, err := RDB.Get(ctx, "session:"+sessionID).Result()
+	key := "session:" + sessionID
+	val, err := RDB.Get(ctx, key).Result()
 	if err != nil {
 		return nil, err
 	}
+
+	// Sliding expiration: кожен активний запит подовжує TTL сесії.
+	RDB.Expire(ctx, key, 24*time.Hour)
 
 	var data map[string]interface{}
 	json.Unmarshal([]byte(val), &data)

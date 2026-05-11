@@ -20,14 +20,18 @@
   $effect(() => {
     (async () => {
       try {
-        [configs, gates, apiKeys] = await Promise.all([
-          api.configs.list(), api.gates.list(), api.auth.keys.list(),
-        ]);
+        [configs, gates] = await Promise.all([api.configs.list(), api.gates.list()]);
       } catch {
         toast.error('Помилка завантаження пристроїв');
       } finally {
         loading = false;
       }
+      // API ключі потрібні лише для відображення назви пристрою.
+      // Якщо у користувача немає read:keys — мовчки пропускаємо;
+      // deviceName() покаже source_id як fallback.
+      try {
+        apiKeys = await api.auth.keys.list();
+      } catch { /* insufficient permissions — fallback to source_id */ }
     })();
   });
 
@@ -110,15 +114,17 @@
             </TableCell>
             <TableCell class="flex items-center gap-1">
               {#if cfg.trigger_enabled && triggerCount > 0}
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Запустити тригер"
-                  disabled={isTriggering}
-                  onclick={(e: MouseEvent) => handleTrigger(e, cfg.id)}
-                >
-                  <Zap size={15} class={isTriggering ? 'animate-pulse text-primary' : 'text-muted-foreground'} />
-                </Button>
+                <PermGuard permission="manage:keys">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Запустити тригер"
+                    disabled={isTriggering}
+                    onclick={(e: MouseEvent) => handleTrigger(e, cfg.id)}
+                  >
+                    <Zap size={15} class={isTriggering ? 'animate-pulse text-primary' : 'text-muted-foreground'} />
+                  </Button>
+                </PermGuard>
               {/if}
               <Button
                 variant="ghost"

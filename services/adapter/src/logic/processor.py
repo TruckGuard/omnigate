@@ -79,7 +79,6 @@ class EventProcessor:
             gate_id=gate_id,
             source_id=source_id,
             data=transformed_data,
-            raw_payload=payload,
             raw_data_key=event.get("raw_storage_key", ""),
             image_keys=event.get("image_keys", []),
             transaction_id=event.get("transaction_id"),  # From Puller flow

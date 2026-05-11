@@ -87,7 +87,7 @@ func seedData() {
 	}
 	err := repository.DB.Where("username = ?", adminUsername).First(&adminUser).Error
 	if adminPassword != "" && err != nil {
-		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(adminPassword), 12)
 
 		newAdmin := models.User{
 			Username:     adminUsername,
@@ -157,7 +157,7 @@ func seedData() {
 		{Method: "GET", PathPattern: `^/api/auth/admin/keys.*`, RequiredPermission: "read:keys", Description: "View keys"},
 		{Method: "POST", PathPattern: `^/api/auth/admin/keys.*`, RequiredPermission: "manage:keys", Description: "Create keys"},
 		{Method: "CRUD", PathPattern: `^/api/auth/admin/keys/.*`, RequiredPermission: "keys", Description: "Manage keys"},
-		{Method: "GET", PathPattern: `^/api/auth/admin/permissions$`, RequiredPermission: "", Description: "List all permissions"},
+		{Method: "GET", PathPattern: `^/api/auth/admin/permissions$`, RequiredPermission: "read:roles", Description: "List all permissions"},
 
 		// Ingestor Service
 		{Method: "POST", PathPattern: `^/ingest/.*`, RequiredPermission: "ingest:events", Description: "Ingest data"},
@@ -214,8 +214,14 @@ func seedData() {
 		)
 	}
 
-	// Додавання крос-ресурсних специфічних зв'язків (якщо юзер може керувати користувачами, він повинен бачити список ролей для їх призначення)
+	// Крос-ресурсні зв'язки:
+
+	// Управління/перегляд користувачів → перегляд ролей (щоб можна було призначати роль)
 	hierarchy = append(hierarchy, models.PermissionHierarchy{ParentID: "manage:users", ChildID: "read:roles"})
+
+	// Перегляд/управління пристроями → перегляд API-ключів (для відображення назви пристрою)
+	hierarchy = append(hierarchy, models.PermissionHierarchy{ParentID: "read:configs", ChildID: "read:keys"})
+	hierarchy = append(hierarchy, models.PermissionHierarchy{ParentID: "manage:configs", ChildID: "manage:keys"})
 
 	// Збереження ієрархії в БД
 	for _, h := range hierarchy {

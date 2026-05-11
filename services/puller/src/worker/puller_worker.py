@@ -46,12 +46,7 @@ class PullWorker:
         if content_type.startswith("image/"):
             files = {"image": ("pulled_image.jpg", response.content, content_type)}
             if not payload:
-                payload = {
-                    "event_type": "camera_recognition",
-                    "plate": "PULLED_IMG",
-                    "confidence": 1.0,
-                    "direction": "unknown",
-                }
+                payload = {}
         else:
             try:
                 fetched = response.json()

@@ -3,12 +3,28 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/omnigate/services/core/src/models"
 	"github.com/omnigate/services/core/src/repository"
 )
+
+// canManageProfile повертає true якщо актор є власником профілю
+// або має permission manage:profiles.
+func canManageProfile(c *gin.Context, profile *models.UserProfile) bool {
+	userIDStr := c.GetHeader("X-User-ID")
+	if userIDStr != "" && strconv.FormatUint(uint64(profile.AuthID), 10) == userIDStr {
+		return true
+	}
+	for _, p := range strings.Split(c.GetHeader("X-Permissions"), ",") {
+		if strings.TrimSpace(p) == "manage:profiles" || strings.TrimSpace(p) == "manage:profiles:all" {
+			return true
+		}
+	}
+	return false
+}
 
 func HandleListUserProfiles(c *gin.Context) {
 	// Optional: look up by auth_id query param
@@ -79,6 +95,10 @@ func HandleUpdateUserProfile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
 		return
 	}
+	if !canManageProfile(c, profile) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: not profile owner or missing manage:profiles"})
+		return
+	}
 
 	var req struct {
 		FirstName string `json:"first_name"`
@@ -117,6 +137,15 @@ func HandleDeleteUserProfile(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid profile ID"})
+		return
+	}
+	profile := repository.GetUserProfile(id)
+	if profile == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
+		return
+	}
+	if !canManageProfile(c, profile) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: not profile owner or missing manage:profiles"})
 		return
 	}
 	if err := repository.DeleteUserProfile(id); err != nil {

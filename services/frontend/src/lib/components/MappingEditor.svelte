@@ -5,6 +5,7 @@
     Select, SelectContent, SelectItem, SelectTrigger,
   } from '$lib/components/ui/select/index.js';
   import type { EventTypeField, Event } from '$lib/types.js';
+  import { api } from '$lib/api.js';
   import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-svelte';
 
   let {
@@ -22,6 +23,19 @@
   let rows = $state<Row[]>([]);
   let rawOpen = $state(false);
   let initialized = $state(false);
+  let rawSample = $state<string | null | undefined>(undefined); // undefined=not loaded, null=loading
+
+  async function toggleRaw() {
+    rawOpen = !rawOpen;
+    if (rawOpen && rawSample === undefined && rawEvent?.raw_data_key) {
+      rawSample = null;
+      try {
+        rawSample = await api.events.raw(rawEvent.id);
+      } catch {
+        rawSample = '(помилка завантаження)';
+      }
+    }
+  }
 
   const schemaKeys = $derived(Object.keys(schema));
 
@@ -52,15 +66,6 @@
     rows = rows.filter((_, idx) => idx !== i);
   }
 
-  const rawDataPreview = $derived.by((): Record<string, unknown> | string | null => {
-    if (!rawEvent?.raw_payload) return null;
-    try {
-      return JSON.parse(rawEvent.raw_payload) as Record<string, unknown>;
-    } catch {
-      // Not JSON (e.g. XML) — return as-is so the template can render it verbatim.
-      return rawEvent.raw_payload;
-    }
-  });
 </script>
 
 <div class="space-y-2">
@@ -109,12 +114,12 @@
     </div>
   {/each}
 
-  {#if rawEvent}
+  {#if rawEvent?.raw_data_key}
     <div class="mt-3 border border-border rounded-md overflow-hidden">
       <button
         type="button"
         class="w-full flex items-center gap-2 px-3 py-2 text-[12px] font-medium text-muted-foreground hover:bg-muted transition-colors"
-        onclick={() => (rawOpen = !rawOpen)}
+        onclick={toggleRaw}
       >
         {#if rawOpen}<ChevronDown size={13} />{:else}<ChevronRight size={13} />{/if}
         Latest event sample
@@ -122,8 +127,10 @@
       </button>
       {#if rawOpen}
         <div class="px-3 py-2 bg-muted/30 border-t border-border">
-          {#if rawDataPreview}
-            <pre class="text-[11px] font-mono text-foreground overflow-auto max-h-[300px] p-1">{typeof rawDataPreview === 'string' ? rawDataPreview : JSON.stringify(rawDataPreview, null, 2)}</pre>
+          {#if rawSample === null}
+            <p class="text-[12px] text-muted-foreground">Завантаження…</p>
+          {:else if rawSample}
+            <pre class="text-[11px] font-mono text-foreground overflow-auto max-h-[300px] p-1">{rawSample}</pre>
           {:else}
             <p class="text-[12px] text-muted-foreground">No raw payload available for this event.</p>
           {/if}

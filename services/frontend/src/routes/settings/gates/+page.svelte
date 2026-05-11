@@ -179,9 +179,11 @@
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (editOpen = false)}>Скасувати</Button>
-      <Button onclick={handleSave} disabled={saving || !fGateId || !fName}>
-        {saving ? 'Збереження…' : isNew ? 'Створити шлагбаум' : 'Зберегти'}
-      </Button>
+      <PermGuard permission="manage:gates">
+        <Button onclick={handleSave} disabled={saving || !fGateId || !fName}>
+          {saving ? 'Збереження…' : isNew ? 'Створити шлагбаум' : 'Зберегти'}
+        </Button>
+      </PermGuard>
     </DialogFooter>
   </DialogContent>
 </Dialog>
@@ -198,7 +200,9 @@
     </DialogHeader>
     <DialogFooter>
       <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
-      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
+      <PermGuard permission="manage:gates">
+        <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
+      </PermGuard>
     </DialogFooter>
   </DialogContent>
 </Dialog>

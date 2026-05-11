@@ -46,6 +46,9 @@ func MigrateDB(db *gorm.DB) {
 	db.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 	db.Exec("CREATE EXTENSION IF NOT EXISTS fuzzystrmatch")
 
+	// Видалення застарілого поля raw_payload (дані тепер лише в Garage/S3).
+	db.Exec("ALTER TABLE events DROP COLUMN IF EXISTS raw_payload")
+
 	// GIN-індекс з класом операторів gin_trgm_ops на полі searchable_value.
 	// Дозволяє PostgreSQL ефективно виконувати запити з оператором %
 	// без повного сканування таблиці events.
