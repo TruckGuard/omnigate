@@ -37,7 +37,13 @@ pip install -r requirements.txt
 python main.py
 ```
 
-There are no unit test suites — integration is tested via `test-scripts/` and manual API calls against the running stack.
+There are no unit test suites. Run the integration test suite against the running stack:
+
+```bash
+python test-scripts/test.py
+```
+
+The script creates devices, event types, and gates, then exercises the full pipeline: multipart ingest, puller triggers, XML/JSON/raw bodies, transaction isolation, and fuzzy vehicle plate search.
 
 ## Architecture Overview
 
@@ -71,6 +77,23 @@ IoT Device → [NGINX Gateway :8090]
 
 **Transactions** ("sticky sessions") tie a sequence of events to a gate. The Ingestor only packages raw data for the Adapter — it does not create transactions. The Adapter processes and forwards structured events to Core. Core creates a new transaction if `transaction_id` is absent, or appends to the existing one if it is present. Core also manages transaction lifecycle and cleanup.
 
+Transaction open/closed state lives entirely in Valkey (key `tx_active:{gateID}`, TTL controlled per-gate via `gates.settings.transaction_ttl_minutes`). The `is_open` field is computed at query time by checking key existence — never stored in PostgreSQL. Transactions auto-rotate when `settings.max_events_per_transaction` is reached.
+
+**Stream consumer retry pattern** (both Adapter and Puller): each message is retried up to 3 times; on the 3rd failure the message is forwarded to `events:dlq` and acknowledged, preventing queue stalls. Consumer names are `{service}-{pid}`.
+
+**Adapter event processing pipeline:**
+1. Fetch `DeviceConfig` from Core (cached 5 min) — contains `data_mapping` (JSONPath expressions), `event_type_id`, `data_type` (json/xml/text), and `triggers` (array of downstream `source_id`s)
+2. Parse + transform payload using JSONPath expressions from `data_mapping`
+3. Optionally call ANPR service if image keys are present
+4. POST structured event to Core
+5. If `trigger_enabled`, publish to `events:puller` for each entry in `triggers`
+
+**Puller re-injection:** Puller holds the `ingest:assume-source` permission (via `PULLER_API_KEY`). This lets it POST to `/ingest/event` with an explicit `source_id` (the triggered downstream device) and `transaction_id` to continue the originating sticky session.
+
+**Event model denormalization (GORM `BeforeSave` hook on `Event`):**
+- `type_code` — copied from `EventType.Code` to avoid JOIN on every query
+- `searchable_value` — uppercase/stripped value from `data[EventType.SearchableKey]`; indexed with a GIN `pg_trgm` index for fuzzy vehicle plate search. PostgreSQL extensions `pg_trgm` and `fuzzystrmatch` are enabled at migration time.
+
 ## Services
 
 | Service | Lang | Port | Role |
@@ -80,6 +103,7 @@ IoT Device → [NGINX Gateway :8090]
 | `core` | Go 1.25 | 8003 | Persists structured events, transactions, device configs |
 | `adapter` | Python 3.13 | — | Stream consumer, event routing/transformation, ANPR integration |
 | `puller` | Python 3.11 | — | Stream consumer, polls external URLs, re-injects data |
+| `frontend` | SvelteKit | 5173 | Web UI |
 
 **Go services** use Gin (HTTP), GORM (PostgreSQL), go-redis, and OpenTelemetry.  
 **Python services** use redis-py for streams, requests for HTTP, minio for S3, and OpenTelemetry.
