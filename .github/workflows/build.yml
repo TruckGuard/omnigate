@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [auth, core, ingestor, adapter, puller]
+        service: [auth, core, ingestor, adapter, puller, frontend]
 
     steps:
       - name: Checkout
