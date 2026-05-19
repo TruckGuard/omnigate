@@ -56,17 +56,19 @@ func ListTransactions(f TransactionFilter) ([]models.Transaction, int64) {
 	if f.Search != "" {
 		// Шукаємо одночасно:
 		//   1. за кодом транзакції (TRK-…) — для пошуку за ID
-		//   2. за searchable_value в подіях — для пошуку за номером авто
+		//   2. за searchable_value в подіях — точний підрядок (ILIKE) АБО
+		//      нечіткий збіг через pg_trgm (оператор %) для опечаток.
 		// EXISTS зупиняється на першому збігу і використовує GIN-індекс
-		// idx_events_searchable_trgm через оператор ILIKE + pg_trgm.
+		// idx_events_searchable_trgm.
 		pattern := "%" + strings.ToUpper(f.Search) + "%"
+		trgm := strings.ToUpper(f.Search)
 		q = q.Where(
 			`code ILIKE ? OR EXISTS (
 				SELECT 1 FROM events
 				WHERE events.transaction_id = transactions.id
-				  AND events.searchable_value ILIKE ?
+				  AND (events.searchable_value ILIKE ? OR events.searchable_value % ?)
 			)`,
-			"%"+f.Search+"%", pattern,
+			"%"+f.Search+"%", pattern, trgm,
 		)
 	}
 
@@ -95,6 +97,22 @@ func ListTransactions(f TransactionFilter) ([]models.Transaction, int64) {
 	}
 
 	return txs, total
+}
+
+// CloseTransaction видаляє Valkey-ключ tx_active:{gateID}, закриваючи активну транзакцію.
+// Повертає (found=false) якщо транзакція не існує, (wasOpen=false) якщо вже закрита.
+func CloseTransaction(id uuid.UUID) (found bool, wasOpen bool) {
+	tx := GetTransactionRaw(id)
+	if tx == nil {
+		return false, false
+	}
+	key := fmt.Sprintf("tx_active:%s", tx.GateID)
+	val, err := RDB.Get(context.Background(), key).Result()
+	if err != nil || val != id.String() {
+		return true, false
+	}
+	RDB.Del(context.Background(), key)
+	return true, true
 }
 
 func UpdateTransaction(tx *models.Transaction) error {

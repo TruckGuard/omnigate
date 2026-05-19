@@ -630,7 +630,7 @@ func HandleDeleteRole(c *gin.Context) {
 	repository.DB.WithContext(c.Request.Context()).Model(&models.User{}).Where("role_id = ?", id).Count(&count)
 
 	if count > 0 {
-		c.JSON(400, gin.H{"error": "Cannot delete role: users are still assigned to it"})
+		c.JSON(409, gin.H{"error": "Роль призначена користувачам — перепризначте їх перед видаленням"})
 		return
 	}
 

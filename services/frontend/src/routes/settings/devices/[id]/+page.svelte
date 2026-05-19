@@ -22,6 +22,7 @@
   import { api } from '$lib/api.js';
   import type { DeviceConfig, Event, EventType, Gate, APIKey, Trigger } from '$lib/types.js';
   import { ChevronLeft, Plus, Trash2, Zap } from 'lucide-svelte';
+  import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
 
   const deviceId = $derived($page.params.id ?? '');
   const isNew    = $derived(deviceId === 'new');
@@ -550,20 +551,12 @@
   </main>
 {/if}
 
-<Dialog bind:open={confirmDelete}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Видалити цей пристрій?</DialogTitle>
-      <DialogDescription>
-        Джерело <span class="font-mono">{sourceId}</span> буде видалено, всі активні маппінги анульовані. Дію неможливо скасувати.
-      </DialogDescription>
-    </DialogHeader>
-    <DialogFooter>
-      <Button variant="outline" onclick={() => (confirmDelete = false)}>Скасувати</Button>
-      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+<ConfirmDelete bind:open={confirmDelete} title="Видалити цей пристрій?" onconfirm={handleDelete}>
+  {#snippet description()}
+    Джерело <span class="font-mono">{sourceId}</span> буде видалено, всі активні маппінги анульовані.
+    Дію неможливо скасувати.
+  {/snippet}
+</ConfirmDelete>
 
 <Dialog bind:open={showKeyDialog}>
   <DialogContent class="max-w-md">

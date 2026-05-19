@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -121,6 +122,41 @@ func HandleDeleteTransaction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Transaction deleted"})
+}
+
+// HandleCloseTransaction закриває активну транзакцію, видаляючи Valkey-ключ tx_active.
+// Потребує дозволу transactions:close (перевіряється в хендлері, оскільки NGINX policy
+// для цього шляху вже перевіряє загальний доступ до transactions).
+func HandleCloseTransaction(c *gin.Context) {
+	perms := c.GetHeader("X-Permissions")
+	hasClose := false
+	for _, p := range strings.Split(perms, ",") {
+		if strings.TrimSpace(p) == "transactions:close" {
+			hasClose = true
+			break
+		}
+	}
+	if !hasClose {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Потрібен дозвіл transactions:close"})
+		return
+	}
+
+	txID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid transaction ID"})
+		return
+	}
+
+	found, wasOpen := repository.CloseTransaction(txID)
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Transaction not found"})
+		return
+	}
+	if !wasOpen {
+		c.JSON(http.StatusConflict, gin.H{"error": "Транзакція вже закрита"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // HandleVehicleHistory повертає список закритих транзакцій, в яких

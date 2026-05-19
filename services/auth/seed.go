@@ -41,6 +41,7 @@ func seedData() {
 	// Core
 	perms = append(perms, genCRUDPerms("events", "Events", "core", true)...)
 	perms = append(perms, genCRUDPerms("transactions", "Transactions", "core", true)...)
+	perms = append(perms, models.Permission{ID: "transactions:close", Name: "Transactions: Close Active", Module: "core"})
 	perms = append(perms, genCRUDPerms("configs", "Device Configs", "core", true)...)
 	perms = append(perms, genCRUDPerms("types", "Event Types", "core", true)...)
 	perms = append(perms, genCRUDPerms("gates", "Gates", "core", true)...)
@@ -62,6 +63,7 @@ func seedData() {
 		"manage:users", "manage:events", "manage:transactions", "manage:configs", "manage:types",
 		"manage:gates", "manage:profiles",
 		"read:roles", "read:keys", "read:audit",
+		"transactions:close",
 	}
 	var managerPerms []models.Permission
 	repository.DB.Where("id IN ?", managerPermIDs).Find(&managerPerms)
@@ -213,6 +215,9 @@ func seedData() {
 			models.PermissionHierarchy{ParentID: managePerm, ChildID: "delete:" + res},
 		)
 	}
+
+	// manage:transactions includes the close action
+	hierarchy = append(hierarchy, models.PermissionHierarchy{ParentID: "manage:transactions", ChildID: "transactions:close"})
 
 	// Крос-ресурсні зв'язки:
 

@@ -14,6 +14,7 @@
   import { api } from '$lib/api.js';
   import type { AuthRole, Permission } from '$lib/types.js';
   import { Plus, Check } from 'lucide-svelte';
+  import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
 
   let roles       = $state<AuthRole[]>([]);
   let permissions = $state<Permission[]>([]);
@@ -219,19 +220,9 @@
   </DialogContent>
 </Dialog>
 
-<!-- Delete dialog -->
-<Dialog bind:open={deleteOpen}>
-  <DialogContent class="max-w-sm">
-    <DialogHeader>
-      <DialogTitle>Видалити роль?</DialogTitle>
-      <DialogDescription>
-        Роль <span class="font-mono">{deleteTarget?.name}</span> буде назавжди видалено.
-        Користувачі з цією роллю потребуватимуть переназначення.
-      </DialogDescription>
-    </DialogHeader>
-    <DialogFooter>
-      <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
-      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+<ConfirmDelete bind:open={deleteOpen} title="Видалити роль?" onconfirm={handleDelete}>
+  {#snippet description()}
+    Роль <span class="font-mono">{deleteTarget?.name}</span> буде назавжди видалено.
+    Видалення неможливе, якщо до ролі прив'язані користувачі.
+  {/snippet}
+</ConfirmDelete>

@@ -18,6 +18,7 @@
   import { timeAgo } from '$lib/utils.js';
   import PermGuard from '$lib/components/PermGuard.svelte';
   import type { AuthRole, AuthUser, UserProfile } from '$lib/types.js';
+  import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
   import { UserCog, Trash2, KeyRound, UserPlus } from 'lucide-svelte';
 
   let users    = $state<AuthUser[]>([]);
@@ -227,21 +228,11 @@
   </DialogContent>
 </Dialog>
 
-<!-- Delete dialog -->
-<Dialog bind:open={deleteOpen}>
-  <DialogContent class="max-w-sm">
-    <DialogHeader>
-      <DialogTitle>Видалити користувача?</DialogTitle>
-      <DialogDescription>
-        <span class="font-mono">{selected?.username}</span> буде назавжди видалено.
-      </DialogDescription>
-    </DialogHeader>
-    <DialogFooter>
-      <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
-      <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+<ConfirmDelete bind:open={deleteOpen} title="Видалити користувача?" onconfirm={handleDelete}>
+  {#snippet description()}
+    <span class="font-mono">{selected?.username}</span> буде назавжди видалено.
+  {/snippet}
+</ConfirmDelete>
 
 <!-- Create user dialog -->
 <Dialog bind:open={createOpen}>

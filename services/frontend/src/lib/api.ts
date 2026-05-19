@@ -100,6 +100,7 @@ export const api = {
     get: (id: string) => req<Transaction>(`/api/v1/transactions/${id}`),
     update: (id: string, data: { note?: string }) =>
       req<Transaction>(`/api/v1/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    close: (id: string) => req<void>(`/api/v1/transactions/${id}/close`, { method: 'POST' }),
     delete: (id: string) => req<void>(`/api/v1/transactions/${id}`, { method: 'DELETE' }),
     history: (plate: string) =>
       req<VehicleHistoryResponse>(`/api/v1/transactions/history?plate=${encodeURIComponent(plate)}`),
@@ -125,6 +126,7 @@ export const api = {
       req<EventType>('/api/v1/types', { method: 'POST', body: JSON.stringify(d) }),
     update: (id: string, d: { name?: string; description?: string; fields?: Record<string, unknown>; searchable_key?: string }) =>
       req<EventType>(`/api/v1/types/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+    delete: (id: string) => req<void>(`/api/v1/types/${id}`, { method: 'DELETE' }),
   },
 
   configs: {

@@ -58,6 +58,33 @@ func HandleCreateEventType(c *gin.Context) {
 	c.JSON(http.StatusCreated, savedType)
 }
 
+func HandleDeleteEventType(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type ID"})
+		return
+	}
+
+	if repository.GetEventType(id) == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Event type not found"})
+		return
+	}
+
+	events, configs := repository.CountEventTypeUsage(id)
+	if events > 0 || configs > 0 {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Тип події використовується: є пов'язані події або конфігурації пристроїв",
+		})
+		return
+	}
+
+	if err := repository.DeleteEventType(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete event type"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func HandleUpdateEventType(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

@@ -67,6 +67,7 @@ func main() {
 		api.GET("/transactions/history", handlers.HandleVehicleHistory)
 		api.GET("/transactions/:id", handlers.HandleGetTransaction)
 		api.POST("/transactions", handlers.HandleCreateTransaction)
+		api.POST("/transactions/:id/close", handlers.HandleCloseTransaction)
 		api.PUT("/transactions/:id", handlers.HandleUpdateTransaction)
 		api.DELETE("/transactions/:id", handlers.HandleDeleteTransaction)
 
@@ -83,6 +84,7 @@ func main() {
 		api.GET("/types/:id", handlers.HandleGetEventType)
 		api.POST("/types", handlers.HandleCreateEventType)
 		api.PUT("/types/:id", handlers.HandleUpdateEventType)
+		api.DELETE("/types/:id", handlers.HandleDeleteEventType)
 
 		// Gates
 		api.GET("/gates", handlers.HandleListGates)

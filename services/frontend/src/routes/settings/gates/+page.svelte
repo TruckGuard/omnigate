@@ -18,6 +18,7 @@
   import PermGuard from '$lib/components/PermGuard.svelte';
   import type { Gate } from '$lib/types.js';
   import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+  import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
 
   let gates   = $state<Gate[]>([]);
   let loading = $state(true);
@@ -188,21 +189,9 @@
   </DialogContent>
 </Dialog>
 
-<!-- Delete dialog -->
-<Dialog bind:open={deleteOpen}>
-  <DialogContent class="max-w-sm">
-    <DialogHeader>
-      <DialogTitle>Видалити шлагбаум?</DialogTitle>
-      <DialogDescription>
-        Шлагбаум <span class="font-mono">{selected?.gate_id}</span> буде назавжди видалено.
-        Пристрої та транзакції збережуть рядок з ID шлагбауму.
-      </DialogDescription>
-    </DialogHeader>
-    <DialogFooter>
-      <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
-      <PermGuard permission="manage:gates">
-        <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
-      </PermGuard>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+<ConfirmDelete bind:open={deleteOpen} title="Видалити шлагбаум?" onconfirm={handleDelete}>
+  {#snippet description()}
+    Шлагбаум <span class="font-mono">{selected?.gate_id}</span> буде назавжди видалено.
+    Пристрої та транзакції збережуть рядок з ID шлагбауму.
+  {/snippet}
+</ConfirmDelete>

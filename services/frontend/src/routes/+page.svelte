@@ -41,15 +41,43 @@
 
   const totalPages = $derived(Math.ceil(total / PAGE_LIMIT) || 1);
 
-  // Витягує номер авто з PlateEvent в подіях транзакції.
-  // Повертає null, якщо транзакція не містить жодного PlateEvent з номером.
-  function getPlate(tx: Transaction): string | null {
-    for (const ev of tx.events ?? []) {
-      if (ev.type_code === 'PlateEvent' && typeof ev.data?.plate === 'string') {
-        return (ev.data.plate as string).trim();
+  // Серед усіх searchable_value подій транзакції повертає те,
+  // яке найімовірніше спричинило знаходження цієї транзакції при пошуку:
+  //   1. точне включення query як підрядку — найкращий збіг
+  //   2. найбільша кількість символів query, що зустрічаються в значенні по порядку (для нечіткого)
+  function getSearchValue(tx: Transaction, query: string): string | null {
+    const vals = (tx.events ?? [])
+      .map(ev => ev.searchable_value)
+      .filter((v): v is string => !!v);
+    if (!vals.length) return null;
+    const nq = query.toUpperCase().replace(/\s/g, '');
+    if (!nq) return vals[0];
+    const exact = vals.find(v => v.includes(nq));
+    if (exact) return exact;
+    // Greedy subsequence score: count how many chars of nq appear in v in order
+    let best = vals[0], bestScore = 0;
+    for (const v of vals) {
+      let score = 0, j = 0;
+      for (const ch of nq) { const i = v.indexOf(ch, j); if (i >= 0) { score++; j = i + 1; } }
+      if (score > bestScore) { bestScore = score; best = v; }
+    }
+    return best;
+  }
+
+  // For fuzzy matches (hi === -1): returns char-level segments marking which
+  // characters from value appear in query (greedy subsequence).
+  function fuzzyParts(value: string, query: string): { text: string; matched: boolean }[] {
+    const parts: { text: string; matched: boolean }[] = [];
+    let qi = 0;
+    for (let vi = 0; vi < value.length; vi++) {
+      if (qi < query.length && value[vi] === query[qi]) {
+        parts.push({ text: value[vi], matched: true });
+        qi++;
+      } else {
+        parts.push({ text: value[vi], matched: false });
       }
     }
-    return null;
+    return parts;
   }
 
   function openHistory(plate: string, e: MouseEvent) {
@@ -164,7 +192,9 @@
           <TableHead class="w-[110px]">Код</TableHead>
           <TableHead class="w-[130px]">Час</TableHead>
           <TableHead class="hidden sm:table-cell w-[160px]">Шлагбаум</TableHead>
-          <TableHead class="hidden md:table-cell">Номер авто</TableHead>
+          {#if debouncedSearch}
+            <TableHead class="hidden md:table-cell w-[160px]">Знайдено</TableHead>
+          {/if}
           <TableHead class="hidden sm:table-cell">Події</TableHead>
           <TableHead class="w-[90px]"></TableHead>
           <TableHead class="w-[80px]"></TableHead>
@@ -172,8 +202,8 @@
       </TableHeader>
       <TableBody>
         {#each transactions as tx (tx.id)}
-          {@const sel   = tx.id === selectedId}
-          {@const plate = getPlate(tx)}
+          {@const sel      = tx.id === selectedId}
+          {@const matchVal = debouncedSearch ? getSearchValue(tx, debouncedSearch) : null}
           <TableRow
             onclick={() => selectedId = tx.id}
             ondblclick={() => goto(`/transactions/${tx.id}`)}
@@ -191,24 +221,32 @@
             </TableCell>
             <TableCell class="hidden sm:table-cell"><GateBadge gateId={tx.gate_id} dot /></TableCell>
 
-            <!-- Колонка з номером авто та кнопкою "Історія" -->
-            <TableCell class="hidden md:table-cell">
-              {#if plate}
-                <div class="flex items-center gap-1.5">
-                  <span class="font-mono text-sm font-medium tracking-wide">{plate}</span>
-                  <button
-                    type="button"
-                    title="Переглянути історію проїздів"
-                    class="inline-flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                    onclick={(e) => openHistory(plate, e)}
-                  >
-                    <History size={13} />
-                  </button>
-                </div>
-              {:else}
-                <span class="text-muted-foreground text-sm">—</span>
-              {/if}
-            </TableCell>
+            {#if debouncedSearch}
+              <TableCell class="hidden md:table-cell">
+                {#if matchVal}
+                  {@const nq = debouncedSearch.toUpperCase().replace(/\s/g, '')}
+                  {@const hi = matchVal.indexOf(nq)}
+                  <div class="flex items-center gap-1.5 font-mono text-sm font-medium tracking-wide">
+                    {#if hi >= 0}
+                      {matchVal.substring(0, hi)}<span class="text-primary bg-primary/10 rounded px-0.5">{matchVal.substring(hi, hi + nq.length)}</span>{matchVal.substring(hi + nq.length)}
+                    {:else}
+                      {@const parts = fuzzyParts(matchVal, nq)}
+                      {#each parts as p}{#if p.matched}<span class="text-primary">{p.text}</span>{:else}<span class="text-muted-foreground">{p.text}</span>{/if}{/each}
+                    {/if}
+                    <button
+                      type="button"
+                      title="Переглянути історію проїздів"
+                      class="inline-flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      onclick={(e) => openHistory(matchVal, e)}
+                    >
+                      <History size={13} />
+                    </button>
+                  </div>
+                {:else}
+                  <span class="text-muted-foreground text-xs">—</span>
+                {/if}
+              </TableCell>
+            {/if}
 
             <TableCell class="hidden sm:table-cell text-muted-foreground text-sm">
               {tx.events?.length ?? 0} {(tx.events?.length ?? 0) === 1 ? 'подія' : 'подій'}
@@ -231,7 +269,7 @@
         {/each}
         {#if transactions.length === 0}
           <TableRow>
-            <TableCell colspan={7} class="py-10 text-center text-muted-foreground">
+            <TableCell colspan={debouncedSearch ? 7 : 6} class="py-10 text-center text-muted-foreground">
               {loading ? 'Завантаження…' : 'Транзакцій не знайдено'}
             </TableCell>
           </TableRow>

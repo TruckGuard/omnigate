@@ -5,6 +5,7 @@
   import TopBar from "$lib/components/TopBar.svelte";
   import GateBadge from "$lib/components/GateBadge.svelte";
   import AuthImg from "$lib/components/AuthImg.svelte";
+  import PermGuard from "$lib/components/PermGuard.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
@@ -13,7 +14,7 @@
   import { fmtDate, fmtTime, fmtDateTime } from "$lib/utils.js";
   import type { Transaction, DeviceConfig, APIKey } from "$lib/types.js";
   import { authStore } from "$lib/stores/auth.svelte.js";
-  import { ChevronLeft, Camera, X, ExternalLink } from "lucide-svelte";
+  import { ChevronLeft, Camera, X, ExternalLink, StopCircle } from "lucide-svelte";
 
   const txId = $derived($page.params.id ?? "");
 
@@ -21,6 +22,7 @@
   let loading = $state(true);
   let noteText = $state("");
   let savingNote = $state(false);
+  let closing = $state(false);
   let openPhoto = $state<{ key: string; label: string } | null>(null);
 
   // Lightbox zoom/pan
@@ -125,6 +127,24 @@
     })();
   });
 
+  async function closeTransaction() {
+    if (!tx) return;
+    closing = true;
+    try {
+      await api.transactions.close(tx.id);
+      tx = { ...tx, is_open: false };
+      toast.success("Транзакцію закрито");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const body = raw.replace(/^\d+:\s*/, '');
+      let msg = 'Помилка закриття транзакції';
+      try { msg = JSON.parse(body).error ?? msg; } catch { /* */ }
+      toast.error(msg);
+    } finally {
+      closing = false;
+    }
+  }
+
   async function saveNote() {
     if (!tx) return;
     savingNote = true;
@@ -212,6 +232,20 @@
         <Badge variant="secondary">Закрита</Badge>
       {/if}
       <GateBadge gateId={tx.gate_id} dot />
+      {#if tx.is_open}
+        <PermGuard permission="transactions:close">
+          <Button
+            variant="outline"
+            size="sm"
+            class="ml-auto text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+            onclick={closeTransaction}
+            disabled={closing}
+          >
+            <StopCircle size={14} />
+            {closing ? 'Закриття…' : 'Закрити транзакцію'}
+          </Button>
+        </PermGuard>
+      {/if}
     </div>
 
     <!-- Transaction meta — compact horizontal strip -->

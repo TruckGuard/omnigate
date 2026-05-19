@@ -20,6 +20,7 @@
   import PermGuard from '$lib/components/PermGuard.svelte';
   import type { EventType } from '$lib/types.js';
   import { Plus, Trash2, ChevronDown, ChevronRight, Pencil } from 'lucide-svelte';
+  import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
 
   const FIELD_TYPES = ['string', 'number', 'boolean', 'datetime', 'image_url'] as const;
 
@@ -41,6 +42,9 @@
   let editDescription   = $state('');
   let editSearchableKey = $state('');
   let editFields        = $state<Array<{ key: string; name: string; description: string; type: string; required: boolean }>>([]);
+
+  let deleteOpen   = $state(false);
+  let deleteTarget = $state<EventType | null>(null);
 
   const newFieldKeys  = $derived(newFields.map(f => f.key).filter(Boolean));
   const editFieldKeys = $derived(editFields.map(f => f.key).filter(Boolean));
@@ -123,6 +127,23 @@
     }
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    try {
+      await api.types.delete(deleteTarget.id);
+      toast.success('Тип події видалено');
+      deleteOpen = false;
+      deleteTarget = null;
+      await load();
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const body = raw.replace(/^\d+:\s*/, '');
+      let msg = 'Помилка видалення типу події';
+      try { msg = JSON.parse(body).error ?? msg; } catch { /* */ }
+      toast.error(msg);
+    }
+  }
+
   const detailType = $derived(types.find(t => t.id === detailId));
 </script>
 
@@ -170,9 +191,13 @@
             <TableCell class="text-sm text-muted-foreground">{fmtDate(t.created_at)}</TableCell>
             <TableCell>
               <PermGuard permission="manage:types">
-                <div role="presentation" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
                   <Button variant="ghost" size="icon-sm" onclick={() => openEdit(t)}>
                     <Pencil size={13} />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" class="hover:text-destructive"
+                    onclick={() => { deleteTarget = t; deleteOpen = true; }}>
+                    <Trash2 size={13} />
                   </Button>
                 </div>
               </PermGuard>
@@ -303,6 +328,14 @@
     </DialogFooter>
   </DialogContent>
 </Dialog>
+
+<!-- Delete dialog -->
+<ConfirmDelete bind:open={deleteOpen} title="Видалити тип події?" onconfirm={handleDelete}>
+  {#snippet description()}
+    Тип <span class="font-mono">{deleteTarget?.code}</span> буде назавжди видалено.
+    Видалення неможливе, якщо до нього прив'язані події або конфігурації пристроїв.
+  {/snippet}
+</ConfirmDelete>
 
 <!-- Edit dialog -->
 <Dialog bind:open={editOpen}>

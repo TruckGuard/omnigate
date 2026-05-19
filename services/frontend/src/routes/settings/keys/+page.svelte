@@ -20,6 +20,7 @@
   } from '$lib/components/ui/select/index.js';
   import { Plus, Trash2, KeyRound, ShieldCheck, Check } from 'lucide-svelte';
   import PermGuard from '$lib/components/PermGuard.svelte';
+  import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
 
   let keys        = $state<APIKey[]>([]);
   let gates       = $state<Gate[]>([]);
@@ -386,20 +387,9 @@
   </DialogContent>
 </Dialog>
 
-<!-- Delete dialog -->
-<Dialog bind:open={deleteOpen}>
-  <DialogContent class="max-w-sm">
-    <DialogHeader>
-      <DialogTitle>Видалити ключ #{selected?.id}?</DialogTitle>
-      <DialogDescription>
-        Ключ для <span class="font-medium">{selected?.owner_name}</span> буде назавжди відкликано. Пристрій, що використовує його, втратить доступ.
-      </DialogDescription>
-    </DialogHeader>
-    <DialogFooter>
-      <Button variant="outline" onclick={() => (deleteOpen = false)}>Скасувати</Button>
-      <PermGuard permission="manage:keys">
-        <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
-      </PermGuard>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+<ConfirmDelete bind:open={deleteOpen} title="Видалити ключ #{selected?.id}?" onconfirm={handleDelete}>
+  {#snippet description()}
+    Ключ для <span class="font-medium">{selected?.owner_name}</span> буде назавжди відкликано.
+    Пристрій, що використовує його, втратить доступ.
+  {/snippet}
+</ConfirmDelete>

@@ -35,3 +35,13 @@ func UpdateEventType(id uuid.UUID, updates map[string]interface{}) *models.Event
 	DB.Model(&eventType).Updates(updates)
 	return &eventType
 }
+
+func DeleteEventType(id uuid.UUID) error {
+	return DB.Delete(&models.EventType{}, id).Error
+}
+
+func CountEventTypeUsage(id uuid.UUID) (events int64, configs int64) {
+	DB.Model(&models.Event{}).Where("event_type_id = ?", id).Count(&events)
+	DB.Model(&models.DeviceConfig{}).Where("event_type_id = ?", id).Count(&configs)
+	return
+}
