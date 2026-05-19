@@ -103,8 +103,12 @@
       toast.success('Роль видалено');
       deleteOpen = false;
       await load();
-    } catch {
-      toast.error('Помилка видалення ролі');
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const body = raw.replace(/^\d+:\s*/, '');
+      let msg = 'Помилка видалення ролі';
+      try { msg = JSON.parse(body).error ?? msg; } catch { /* */ }
+      toast.error(msg);
     }
   }
 </script>

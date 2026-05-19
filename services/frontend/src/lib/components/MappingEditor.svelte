@@ -70,14 +70,14 @@
 
 <div class="space-y-2">
   <div class="flex items-center justify-between mb-1">
-    <p class="text-[12px] font-medium text-muted-foreground">Mapping rows — JSONPath → field key</p>
+    <p class="text-[12px] font-medium text-muted-foreground">Рядки маппінгу — JSONPath → поле</p>
     <Button variant="outline" size="sm" onclick={addRow}>
-      <Plus size={12} /> Add row
+      <Plus size={12} /> Додати рядок
     </Button>
   </div>
 
   {#if rows.length === 0}
-    <p class="text-[12px] text-muted-foreground py-2">No mapping rules. Add a row to map device data fields.</p>
+    <p class="text-[12px] text-muted-foreground py-2">Немає правил маппінгу. Додайте рядок для зіставлення полів даних пристрою.</p>
   {/if}
 
   {#each rows as row, i}
@@ -86,7 +86,7 @@
         <div class="w-full sm:w-[180px] sm:shrink-0">
           <Select type="single" bind:value={row.key}>
             <SelectTrigger class="font-mono text-[12px] h-8 w-full">
-              {row.key || 'Field key…'}
+              {row.key || 'Ключ поля…'}
             </SelectTrigger>
             <SelectContent>
               {#each schemaKeys as k}
@@ -122,7 +122,7 @@
         onclick={toggleRaw}
       >
         {#if rawOpen}<ChevronDown size={13} />{:else}<ChevronRight size={13} />{/if}
-        Latest event sample
+        Приклад останньої події
         <span class="text-[11px] font-mono opacity-60">{rawEvent.source_id}</span>
       </button>
       {#if rawOpen}
@@ -132,7 +132,7 @@
           {:else if rawSample}
             <pre class="text-[11px] font-mono text-foreground overflow-auto max-h-[300px] p-1">{rawSample}</pre>
           {:else}
-            <p class="text-[12px] text-muted-foreground">No raw payload available for this event.</p>
+            <p class="text-[12px] text-muted-foreground">Сирі дані для цієї події відсутні.</p>
           {/if}
         </div>
       {/if}

@@ -18,7 +18,7 @@
   import {
     Select, SelectContent, SelectItem, SelectTrigger,
   } from '$lib/components/ui/select/index.js';
-  import { Plus, Trash2, KeyRound, ShieldCheck } from 'lucide-svelte';
+  import { Plus, Trash2, KeyRound, ShieldCheck, Check } from 'lucide-svelte';
   import PermGuard from '$lib/components/PermGuard.svelte';
 
   let keys        = $state<APIKey[]>([]);
@@ -258,16 +258,28 @@
       </Field>
       <div>
         <p class="text-xs font-medium mb-2">Дозволи</p>
-        {#each [...permsByModule()] as [module, perms]}
-          <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-2 mb-1">{module}</p>
-          {#each perms as p}
-            <label class="flex items-center gap-2 py-0.5 cursor-pointer">
-              <input type="checkbox" checked={newPermIds.includes(p.id)} onchange={() => toggleNewPerm(p.id)} />
-              <span class="text-sm">{p.name}</span>
-              <span class="text-[11px] text-muted-foreground">{p.description}</span>
-            </label>
+        <div class="space-y-1 max-h-[220px] overflow-y-auto">
+          {#each [...permsByModule()] as [module, perms]}
+            <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">{module}</p>
+            {#each perms as p}
+              {@const active = newPermIds.includes(p.id)}
+              <button
+                type="button"
+                onclick={() => toggleNewPerm(p.id)}
+                class="w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors
+                  {active ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
+              >
+                <div class="text-left">
+                  <span class="font-mono font-medium text-xs">{p.id}</span>
+                  {#if p.description}
+                    <span class="block text-[11px] mt-0.5 opacity-70">{p.description}</span>
+                  {/if}
+                </div>
+                {#if active}<Check size={14} class="shrink-0" />{/if}
+              </button>
+            {/each}
           {/each}
-        {/each}
+        </div>
       </div>
     </div>
     <DialogFooter>
@@ -345,11 +357,21 @@
       {#each [...permsByModule()] as [module, perms]}
         <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">{module}</p>
         {#each perms as p}
-          <label class="flex items-center gap-2 py-0.5 cursor-pointer">
-            <input type="checkbox" checked={editPermIds.includes(p.id)} onchange={() => togglePerm(p.id)} />
-            <span class="text-sm">{p.name}</span>
-            <span class="text-[11px] text-muted-foreground ml-auto">{p.id}</span>
-          </label>
+          {@const active = editPermIds.includes(p.id)}
+          <button
+            type="button"
+            onclick={() => togglePerm(p.id)}
+            class="w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors
+              {active ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
+          >
+            <div class="text-left">
+              <span class="font-mono font-medium text-xs">{p.id}</span>
+              {#if p.description}
+                <span class="block text-[11px] mt-0.5 opacity-70">{p.description}</span>
+              {/if}
+            </div>
+            {#if active}<Check size={14} class="shrink-0" />{/if}
+          </button>
         {/each}
       {/each}
     </div>

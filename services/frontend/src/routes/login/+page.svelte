@@ -27,7 +27,7 @@
       goto('/');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      error = msg.startsWith('401') ? 'Invalid username or password.' : 'Sign in failed. Please try again.';
+      error = msg.startsWith('401') ? 'Невірний логін або пароль.' : 'Помилка входу. Спробуйте ще раз.';
     } finally {
       loading = false;
     }
@@ -48,33 +48,33 @@
         </svg>
       </div>
       <h1 class="text-[20px] font-bold tracking-[-0.01em]">OmniGate</h1>
-      <p class="text-[13px] text-muted-foreground mt-0.5">Sign in to your account</p>
+      <p class="text-[13px] text-muted-foreground mt-0.5">Увійдіть до свого акаунту</p>
     </div>
 
     <Card>
       <CardContent class="pt-6">
         <form onsubmit={handleSubmit} class="space-y-4">
           <div class="space-y-1.5">
-            <Label for="username">Username</Label>
+            <Label for="username">Логін</Label>
             <Input
               id="username"
               type="text"
               bind:value={username}
               autocomplete="username"
               required
-              placeholder="Enter your username"
+              placeholder="Введіть логін"
             />
           </div>
 
           <div class="space-y-1.5">
-            <Label for="password">Password</Label>
+            <Label for="password">Пароль</Label>
             <Input
               id="password"
               type="password"
               bind:value={password}
               autocomplete="current-password"
               required
-              placeholder="Enter your password"
+              placeholder="Введіть пароль"
             />
           </div>
 
@@ -85,7 +85,7 @@
           {/if}
 
           <Button type="submit" class="w-full" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Вхід…' : 'Увійти'}
           </Button>
         </form>
       </CardContent>

@@ -54,6 +54,8 @@
   let newKeyName   = $state('');
   let newKeyGateId = $state('');
   let savingKey    = $state(false);
+  let generatedKey    = $state('');
+  let showKeyDialog   = $state(false);
 
   // Inline gate form
   let creatingGate    = $state(false);
@@ -131,12 +133,13 @@
       const res = await api.auth.keys.create({
         name: newKeyName,
         gate_id: newKeyGateId || gateId,
-        permission_ids: [],
+        permission_ids: ['ingest:events'],
       });
       apiKeys = await api.auth.keys.list();
       sourceId = String(res.id);
       creatingKey = false; newKeyName = ''; newKeyGateId = '';
-      toast.success(`Ключ #${res.id} створено — збережіть: ${res.api_key}`);
+      generatedKey = res.api_key;
+      showKeyDialog = true;
     } catch {
       toast.error('Помилка створення ключа');
     } finally {
@@ -558,6 +561,22 @@
     <DialogFooter>
       <Button variant="outline" onclick={() => (confirmDelete = false)}>Скасувати</Button>
       <Button variant="destructive" onclick={handleDelete}>Видалити</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+<Dialog bind:open={showKeyDialog}>
+  <DialogContent class="max-w-md">
+    <DialogHeader>
+      <DialogTitle>API ключ створено</DialogTitle>
+      <DialogDescription>Скопіюйте ключ зараз — він більше не буде показаний.</DialogDescription>
+    </DialogHeader>
+    <div class="rounded-md bg-muted p-3 font-mono text-sm break-all select-all">{generatedKey}</div>
+    <DialogFooter>
+      <Button onclick={() => { navigator.clipboard.writeText(generatedKey); toast.success('Скопійовано'); }}>
+        Копіювати
+      </Button>
+      <Button variant="outline" onclick={() => (showKeyDialog = false)}>Закрити</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>

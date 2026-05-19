@@ -634,7 +634,17 @@ func HandleDeleteRole(c *gin.Context) {
 		return
 	}
 
-	repository.DB.WithContext(c.Request.Context()).Delete(&models.Role{}, id)
+	if err := repository.DB.WithContext(c.Request.Context()).
+		Exec("DELETE FROM role_permissions WHERE role_id = ?", id).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Failed to clear role permissions"})
+		return
+	}
+
+	if err := repository.DB.WithContext(c.Request.Context()).Delete(&models.Role{}, id).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Failed to delete role"})
+		return
+	}
+
 	c.Status(204)
 }
 

@@ -9,16 +9,11 @@
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import { Card, CardContent } from "$lib/components/ui/card/index.js";
-  import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-  } from "$lib/components/ui/dialog/index.js";
   import { api } from "$lib/api.js";
   import { fmtDate, fmtTime, fmtDateTime } from "$lib/utils.js";
-  import type { Transaction } from "$lib/types.js";
-  import { ChevronLeft, Camera } from "lucide-svelte";
+  import type { Transaction, DeviceConfig, APIKey } from "$lib/types.js";
+  import { authStore } from "$lib/stores/auth.svelte.js";
+  import { ChevronLeft, Camera, X, ExternalLink } from "lucide-svelte";
 
   const txId = $derived($page.params.id ?? "");
 
@@ -27,6 +22,91 @@
   let noteText = $state("");
   let savingNote = $state(false);
   let openPhoto = $state<{ key: string; label: string } | null>(null);
+
+  // Lightbox zoom/pan
+  let imgScale = $state(1);
+  let imgX = $state(0);
+  let imgY = $state(0);
+  let dragging = $state(false);
+  let dragStart = $state({ x: 0, y: 0, ox: 0, oy: 0 });
+
+  $effect(() => { if (openPhoto) { imgScale = 1; imgX = 0; imgY = 0; } });
+
+  function closePhoto() { openPhoto = null; imgScale = 1; imgX = 0; imgY = 0; }
+  function handleKeydown(e: KeyboardEvent) { if (openPhoto && e.key === 'Escape') closePhoto(); }
+
+  let openingOriginal = $state(false);
+  async function openOriginal() {
+    if (!openPhoto) return;
+    openingOriginal = true;
+    try {
+      const res = await fetch(api.imageUrl(openPhoto.key), {
+        headers: authStore.sessionId ? { Authorization: `Bearer ${authStore.sessionId}` } : {},
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      toast.error('Не вдалося відкрити зображення');
+    } finally {
+      openingOriginal = false;
+    }
+  }
+
+  function onDblClick() {
+    if (imgScale > 1) { imgScale = 1; imgX = 0; imgY = 0; } else imgScale = 2.5;
+  }
+  function onMouseDown(e: MouseEvent) {
+    if (e.button !== 0) return;
+    dragging = true;
+    dragStart = { x: e.clientX, y: e.clientY, ox: imgX, oy: imgY };
+  }
+  function onMouseMove(e: MouseEvent) {
+    if (!dragging) return;
+    imgX = dragStart.ox + (e.clientX - dragStart.x);
+    imgY = dragStart.oy + (e.clientY - dragStart.y);
+  }
+  function onMouseUp() { dragging = false; }
+
+  // Non-passive wheel + pinch via Svelte action (passive:false required for preventDefault)
+  function lightboxInteract(node: HTMLElement) {
+    let ld = 0, lmx = 0, lmy = 0;
+    function wheel(e: WheelEvent) {
+      e.preventDefault();
+      imgScale = Math.max(1, Math.min(6, imgScale * (e.deltaY > 0 ? 0.85 : 1.15)));
+      if (imgScale <= 1) { imgScale = 1; imgX = 0; imgY = 0; }
+    }
+    function touchStart(e: TouchEvent) {
+      if (e.touches.length !== 2) return;
+      e.preventDefault();
+      ld = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      lmx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      lmy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    }
+    function touchMove(e: TouchEvent) {
+      if (e.touches.length !== 2) return;
+      e.preventDefault();
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      if (ld) imgScale = Math.max(1, Math.min(6, imgScale * d / ld));
+      if (imgScale <= 1) { imgScale = 1; imgX = 0; imgY = 0; } else { imgX += mx - lmx; imgY += my - lmy; }
+      ld = d; lmx = mx; lmy = my;
+    }
+    function touchEnd(e: TouchEvent) { if (e.touches.length < 2) ld = 0; }
+    node.addEventListener('wheel', wheel, { passive: false });
+    node.addEventListener('touchstart', touchStart, { passive: false });
+    node.addEventListener('touchmove', touchMove, { passive: false });
+    node.addEventListener('touchend', touchEnd);
+    return { destroy() {
+      node.removeEventListener('wheel', wheel);
+      node.removeEventListener('touchstart', touchStart);
+      node.removeEventListener('touchmove', touchMove);
+      node.removeEventListener('touchend', touchEnd);
+    }};
+  }
 
   $effect(() => {
     const id = txId;
@@ -76,6 +156,21 @@
   function tryFormatJson(s: string): string {
     try { return JSON.stringify(JSON.parse(s), null, 2); }
     catch { return s; }
+  }
+
+  // Device lookup
+  let allConfigs = $state<DeviceConfig[]>([]);
+  let apiKeys    = $state<APIKey[]>([]);
+
+  $effect(() => {
+    api.configs.list().then(c => { allConfigs = c; }).catch(() => {});
+    api.auth.keys.list().then(k => { apiKeys = k; }).catch(() => {});
+  });
+
+  function deviceFor(sourceId: string): { name: string; config_id: string | null } {
+    const key = apiKeys.find(k => String(k.id) === sourceId);
+    const cfg = allConfigs.find(c => c.source_id === sourceId);
+    return { name: key?.owner_name ?? sourceId, config_id: cfg?.id ?? null };
   }
 
   // Lazy raw data: event id → fetched string (or null while loading)
@@ -176,24 +271,30 @@
                   <Card class="overflow-hidden">
                     <CardContent class="p-3 sm:p-4">
 
-                      <!-- Card header: type name + source badge + time (mobile) -->
+                      <!-- Card header -->
                       <div class="flex items-start justify-between gap-2 mb-2">
-                        <div class="flex items-center gap-1.5 flex-wrap min-w-0">
-                          <span class="text-sm font-semibold leading-tight">
-                            {ev.event_type?.name ?? 'Подія'}
-                          </span>
-                          <Badge variant="outline" class="font-mono text-[11px] shrink-0 px-1.5">
-                            {ev.source_id}
-                          </Badge>
+                        <div class="min-w-0 flex-1">
+                          <div class="flex items-center gap-x-1.5 flex-wrap">
+                            <span class="text-sm font-semibold leading-tight">{ev.event_type?.name ?? 'Подія'}</span>
+                            <span class="text-muted-foreground/40 text-xs leading-tight">·</span>
+                            {#if deviceFor(ev.source_id).config_id}
+                              <a
+                                href="/settings/devices/{deviceFor(ev.source_id).config_id}"
+                                class="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-primary transition-colors leading-tight"
+                              >
+                                {deviceFor(ev.source_id).name}
+                                <ExternalLink size={10} class="shrink-0 opacity-60" />
+                              </a>
+                            {:else}
+                              <span class="text-xs text-muted-foreground leading-tight">{deviceFor(ev.source_id).name}</span>
+                            {/if}
+                          </div>
+                          <div class="text-[10px] font-mono text-muted-foreground/50 mt-0.5 truncate">{ev.id}</div>
                         </div>
                         <!-- Mobile-only timestamp -->
                         <div class="sm:hidden shrink-0 text-right leading-none">
-                          <div class="text-[11px] font-mono font-semibold tabular-nums">
-                            {fmtTime(ev.created_at)}
-                          </div>
-                          <div class="text-[10px] text-muted-foreground mt-0.5">
-                            {fmtDate(ev.created_at)}
-                          </div>
+                          <div class="text-[11px] font-mono font-semibold tabular-nums">{fmtTime(ev.created_at)}</div>
+                          <div class="text-[10px] text-muted-foreground mt-0.5">{fmtDate(ev.created_at)}</div>
                         </div>
                       </div>
 
@@ -300,30 +401,62 @@
   </main>
 {/if}
 
-<!-- Photo lightbox -->
-<Dialog
-  open={!!openPhoto}
-  onOpenChange={(v) => {
-    if (!v) openPhoto = null;
-  }}
->
-  <DialogContent class="max-w-2xl">
-    {#if openPhoto}
-      <DialogHeader>
-        <DialogTitle
-          class="font-mono text-xs font-normal text-muted-foreground"
-          >{openPhoto.label}</DialogTitle
+<svelte:window onkeydown={handleKeydown} />
+
+{#if openPhoto}
+  <div class="fixed inset-0 z-50 bg-black/95 flex flex-col select-none" role="dialog" aria-modal="true">
+
+    <!-- Top bar -->
+    <div class="flex items-center justify-between px-4 py-2 shrink-0">
+      <span class="font-mono text-xs text-white/50">{openPhoto.label}</span>
+      <div class="flex items-center gap-2 text-white/50">
+        <span class="text-[11px] tabular-nums">{Math.round(imgScale * 100)}%</span>
+        <button
+          onclick={openOriginal}
+          disabled={openingOriginal}
+          class="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border border-white/20 hover:border-white/50 hover:text-white transition-colors disabled:opacity-40"
         >
-      </DialogHeader>
+          <ExternalLink size={13} />
+          Оригінал
+        </button>
+        <button onclick={closePhoto} class="hover:text-white transition-colors p-1.5">
+          <X size={18} />
+        </button>
+      </div>
+    </div>
+
+    <!-- Image area -->
+    <div
+      use:lightboxInteract
+      role="presentation"
+      onkeydown={handleKeydown}
+      class="flex-1 overflow-hidden flex items-center justify-center {imgScale > 1 ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'}"
+      onmousedown={onMouseDown}
+      onmousemove={onMouseMove}
+      onmouseup={onMouseUp}
+      onmouseleave={onMouseUp}
+      ondblclick={onDblClick}
+      onclick={(e) => { if (e.target === e.currentTarget && imgScale === 1) closePhoto(); }}
+    >
       <div
-        class="aspect-[4/3] w-full rounded-md border border-border overflow-hidden bg-[#1e293b]"
+        class="transform-gpu"
+        style="transform: translate({imgX}px, {imgY}px) scale({imgScale}); transition: {dragging ? 'none' : 'transform 0.1s ease'};"
       >
         <AuthImg
           src={api.imageUrl(openPhoto.key)}
           alt={openPhoto.label}
-          class="w-full h-full object-contain"
+          class="block max-w-[99vw] max-h-[calc(100dvh-80px)] object-contain pointer-events-none"
         />
       </div>
-    {/if}
-  </DialogContent>
-</Dialog>
+    </div>
+
+    <!-- Hints -->
+    <div class="shrink-0 flex items-center justify-center gap-5 py-2 text-[10px] text-white/20">
+      <span>scroll / pinch — zoom</span>
+      <span>двічі — 2.5×</span>
+      <span>тягни — зсув</span>
+      <span>ESC — закрити</span>
+    </div>
+
+  </div>
+{/if}

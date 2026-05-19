@@ -47,7 +47,7 @@
   <img {alt} src={blobUrl} class={cls} {...rest} />
 {:else if error}
   <div class="flex items-center justify-center bg-muted text-muted-foreground text-[11px] {cls}">
-    Failed to load
+    Не вдалося завантажити
   </div>
 {:else}
   <div class="bg-muted animate-pulse {cls}"></div>
