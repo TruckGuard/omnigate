@@ -1,0 +1,202 @@
+services:
+  # ── Infrastructure ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AUTH_DB_NAME: ${AUTH_DB_NAME}
+      AUTH_USER: ${AUTH_USER}
+      AUTH_PASSWORD: ${AUTH_PASSWORD}
+      CORE_DB_NAME: ${CORE_DB_NAME}
+      CORE_USER: ${CORE_USER}
+      CORE_PASSWORD: ${CORE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8.0
+    restart: unless-stopped
+    command: valkey-server --save 60 1 --loglevel warning
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  garage:
+    build:
+      context: ./garage
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+    volumes:
+      - garage_data:/data
+      - ./garage/garage.toml:/etc/garage.toml
+      - ./garage/entrypoint.sh:/entrypoint.sh
+    healthcheck:
+      test: ["CMD", "garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+
+  # ── Application services (pre-built GHCR images) ──────────────────────────────
+  auth:
+    image: ghcr.io/truckguard/omnigate-auth:latest
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://${AUTH_USER}:${AUTH_PASSWORD}@db:5432/${AUTH_DB_NAME}
+      - VALKEY_ADDR=valkey:6379
+      - PORT=8080
+      - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
+      - PULLER_API_KEY=${PULLER_API_KEY}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+
+  ingestor:
+    image: ghcr.io/truckguard/omnigate-ingestor:latest
+    restart: unless-stopped
+    environment:
+      - VALKEY_ADDR=valkey:6379
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - BUCKET_NAME=${STORAGE_BUCKET}
+      - CORE_URL=http://gateway
+      - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
+      - PORT=8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      valkey:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+
+  core:
+    image: ghcr.io/truckguard/omnigate-core:latest
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://${CORE_USER}:${CORE_PASSWORD}@db:5432/${CORE_DB_NAME}
+      - VALKEY_ADDR=valkey:6379
+      - PORT=8080
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+
+  adapter:
+    image: ghcr.io/truckguard/omnigate-adapter:latest
+    restart: unless-stopped
+    environment:
+      - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
+      - CORE_URL=http://gateway/api/v1
+      - VALKEY_ADDR=valkey:6379
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+    depends_on:
+      core:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+
+  puller:
+    image: ghcr.io/truckguard/omnigate-puller:latest
+    restart: unless-stopped
+    environment:
+      - INGESTOR_URL=http://gateway/ingest
+      - WORKER_API_KEY=${PULLER_API_KEY}
+      - VALKEY_ADDR=valkey:6379
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  # ── Frontend ──────────────────────────────────────────────────────────────────
+  frontend:
+    image: ghcr.io/truckguard/omnigate-frontend:latest
+    restart: unless-stopped
+    environment:
+      - PUBLIC_API_BASE=${PUBLIC_URL:-}
+
+  # ── Gateway ───────────────────────────────────────────────────────────────────
+  gateway:
+    image: nginx:1.25
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ../docs:/docs:ro
+    ports:
+      - "${GATEWAY_PORT:-80}:80"
+    depends_on:
+      auth:
+        condition: service_healthy
+      ingestor:
+        condition: service_healthy
+      core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  valkey_data:
+  garage_data:
