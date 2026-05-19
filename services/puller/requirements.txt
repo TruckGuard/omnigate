@@ -1,6 +1,7 @@
 redis==5.0.1
 requests==2.31.0
 tenacity==8.3.0
+opencv-python-headless==4.10.0.84
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-grpc
