@@ -34,6 +34,10 @@ type APIKey struct {
 	GateID      string       `gorm:"type:varchar(50)" json:"gate_id"`
 	Permissions []Permission `gorm:"many2many:apikey_permissions;" json:"permissions"`
 	CreatedAt   time.Time    `json:"created_at"`
+	// Digest Auth for ITSAPI cameras. NULL = digest disabled for this key.
+	// DigestHA1 stores MD5(username:realm:password) — plaintext password is never persisted.
+	DigestUsername *string `gorm:"type:varchar(255);uniqueIndex" json:"digest_username,omitempty"`
+	DigestHA1      *string `gorm:"type:varchar(32)" json:"-"`
 }
 
 type SourceMetadata struct {

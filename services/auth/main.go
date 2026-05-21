@@ -75,6 +75,8 @@ func main() {
 		admin.DELETE("/keys/:id", middleware.RequirePermission("manage:keys"), handlers.HandleDeleteKey)
 		admin.PUT("/keys/:id/permissions", middleware.RequirePermission("manage:keys"), handlers.HandleAssignPermissionsToKey)
 		admin.PUT("/keys/:id", middleware.RequirePermission("manage:keys"), handlers.HandleUpdateKey)
+		admin.POST("/keys/:id/digest", middleware.RequirePermission("manage:keys"), handlers.HandleSetDigestCredentials)
+		admin.DELETE("/keys/:id/digest", middleware.RequirePermission("manage:keys"), handlers.HandleClearDigestCredentials)
 
 		admin.GET("/permissions", handlers.HandleListPermissions)
 	}

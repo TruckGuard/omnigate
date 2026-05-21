@@ -149,27 +149,42 @@ func HandleValidate(c *gin.Context) {
 			return
 		}
 	} else {
-		// 2. Check Session ID
 		authHeader := c.GetHeader("Authorization")
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			sessionID = strings.TrimPrefix(authHeader, "Bearer ")
-		}
-		if sessionID == "" {
-			if cookie, err := c.Cookie("session"); err == nil {
-				sessionID = cookie
-			}
-		}
 
-		if sessionID != "" {
-			sessionData, err := repository.GetSession(sessionID)
-			if err == nil && sessionData != nil {
-				userIDFloat, ok := sessionData["user_id"].(float64)
-				if ok {
-					uID := uint(userIDFloat)
-					perms = repository.GetUserPermissions(uID)
-					userID = fmt.Sprintf("%d", uID)
-					username, _ = sessionData["username"].(string)
-					role, _ = sessionData["role"].(string)
+		if strings.HasPrefix(authHeader, "Digest ") {
+			// 2. HTTP Digest Auth — used by ITSAPI cameras that cannot send custom headers.
+			meta, ok := ValidateDigestAuth(authHeader, origMethod)
+			if !ok {
+				// Stale or missing nonce: issue a fresh challenge so the camera can retry.
+				IssueDigestChallenge(c)
+				return
+			}
+			sourceID = meta.ID
+			sourceName = meta.Name
+			gateID = meta.GateID
+			perms = meta.Permissions
+		} else {
+			// 3. Check Session ID (Bearer token or cookie)
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				sessionID = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+			if sessionID == "" {
+				if cookie, err := c.Cookie("session"); err == nil {
+					sessionID = cookie
+				}
+			}
+
+			if sessionID != "" {
+				sessionData, err := repository.GetSession(sessionID)
+				if err == nil && sessionData != nil {
+					userIDFloat, ok := sessionData["user_id"].(float64)
+					if ok {
+						uID := uint(userIDFloat)
+						perms = repository.GetUserPermissions(uID)
+						userID = fmt.Sprintf("%d", uID)
+						username, _ = sessionData["username"].(string)
+						role, _ = sessionData["role"].(string)
+					}
 				}
 			}
 		}
@@ -177,8 +192,18 @@ func HandleValidate(c *gin.Context) {
 
 	// 3. Authenticated?
 	if perms == nil && userID == "" && sourceID == "" {
-		slog.Warn("Validation failed: no identity provided", "method", origMethod, "uri", origURI)
-		c.Status(401)
+		noAuthHeader := c.GetHeader("Authorization") == ""
+		_, cookieErr := c.Cookie("session")
+		noSession := cookieErr != nil
+		// For /ingest/ with no auth hint at all, issue a Digest challenge so ITSAPI
+		// cameras can respond. Any other path (or any request that already carried
+		// a failed credential) still gets a plain 401.
+		if noAuthHeader && noSession && strings.HasPrefix(origURI, "/ingest/") {
+			IssueDigestChallenge(c)
+		} else {
+			slog.Warn("Validation failed: no identity provided", "method", origMethod, "uri", origURI)
+			c.Status(401)
+		}
 		return
 	}
 

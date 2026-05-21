@@ -84,6 +84,10 @@ export const api = {
       updatePermissions: (id: number, permission_ids: string[]) =>
         req<void>(`/api/auth/admin/keys/${id}/permissions`, { method: 'PUT', body: JSON.stringify({ permission_ids }) }),
       delete: (id: number) => req<void>(`/api/auth/admin/keys/${id}`, { method: 'DELETE' }),
+      setDigest: (id: number, digest_username: string, digest_password: string) =>
+        req<void>(`/api/auth/admin/keys/${id}/digest`, { method: 'POST', body: JSON.stringify({ digest_username, digest_password }) }),
+      clearDigest: (id: number) =>
+        req<void>(`/api/auth/admin/keys/${id}/digest`, { method: 'DELETE' }),
     },
   },
 
@@ -134,7 +138,7 @@ export const api = {
     get: (sourceId: string) => req<DeviceConfig>(`/api/v1/configs/devices/${sourceId}`),
     create: (d: Omit<DeviceConfig, 'id' | 'created_at' | 'updated_at' | 'enabled' | 'event_type'> & { triggers?: Trigger[] }) =>
       req<DeviceConfig>('/api/v1/configs/devices', { method: 'POST', body: JSON.stringify(d) }),
-    update: (id: string, d: Partial<Pick<DeviceConfig, 'event_type_id' | 'gate_id' | 'data_type' | 'data_mapping' | 'trigger_url' | 'trigger_enabled' | 'triggers'>>) =>
+    update: (id: string, d: Partial<Pick<DeviceConfig, 'event_type_id' | 'gate_id' | 'data_type' | 'data_mapping' | 'trigger_url' | 'trigger_enabled' | 'triggers' | 'image_fields'>>) =>
       req<DeviceConfig>(`/api/v1/configs/devices/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
     delete: (id: string) => req<void>(`/api/v1/configs/devices/${id}`, { method: 'DELETE' }),
     trigger: (id: string) => req<{ message: string }>(`/api/v1/configs/devices/${id}/trigger`, { method: 'POST' }),

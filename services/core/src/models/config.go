@@ -18,7 +18,7 @@ type DeviceConfig struct {
 	ID          uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	SourceID    string     `gorm:"type:varchar(100);not null" json:"source_id"`
 	EventTypeID uuid.UUID  `gorm:"type:uuid;not null" json:"event_type_id"`
-	EventType   *EventType `gorm:"foreignKey:EventTypeID" json:"event_type,omitempty"`
+	EventType   *EventType `gorm:"foreignKey:EventTypeID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"event_type,omitempty"`
 	GateID      string     `gorm:"type:varchar(50);not null" json:"gate_id"`
 
 	DataMapping datatypes.JSON `gorm:"type:jsonb;not null" json:"data_mapping"`
@@ -32,6 +32,10 @@ type DeviceConfig struct {
 	// Each entry holds the target's source_id; Puller resolves the URL from the target's config.
 	Triggers       datatypes.JSON `gorm:"type:jsonb" json:"triggers"`
 	TriggerEnabled bool           `gorm:"default:false" json:"trigger_enabled"`
+
+	// ImageFields lists data_mapping field names whose values are base64-encoded images.
+	// The Adapter decodes them, uploads to S3, and replaces the value with the object key.
+	ImageFields datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"image_fields"`
 
 	Enabled   bool      `gorm:"default:true" json:"enabled"`
 	CreatedAt time.Time `json:"created_at"`

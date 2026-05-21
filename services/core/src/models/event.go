@@ -15,7 +15,7 @@ type Event struct {
 	TransactionID *uuid.UUID     `gorm:"type:uuid" json:"transaction_id"`
 
 	EventTypeID uuid.UUID  `gorm:"type:uuid;not null" json:"event_type_id"`
-	EventType   *EventType `gorm:"foreignKey:EventTypeID" json:"event_type,omitempty"`
+	EventType   *EventType `gorm:"foreignKey:EventTypeID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"event_type,omitempty"`
 
 	GateID   string `gorm:"type:varchar(50);not null" json:"gate_id"`
 	SourceID string `gorm:"type:varchar(100);not null" json:"source_id"`

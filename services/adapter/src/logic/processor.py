@@ -1,6 +1,9 @@
+import base64
 import json
 import logging
-from typing import Dict, Any
+import uuid
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Tuple
 import xmltodict
 from jsonpath_ng import parse
 from opentelemetry import trace
@@ -58,21 +61,30 @@ class EventProcessor:
         
         # 3. Transform data using mapping
         transformed_data = self._transform_data(parsed_data, config.get("data_mapping", {}))
-        
-        # 4. Special handling for camera images (trigger ANPR)
-        if event.get("image_keys"):
-            image_key = event["image_keys"][0]
+
+        # 3.5 Decode and upload any base64-encoded images present in the payload.
+        # Fields listed in config["image_fields"] are replaced with their S3 object keys
+        # so that the event bus and Core never carry raw binary blobs.
+        transformed_data, uploaded_image_keys = self._handle_base64_images(
+            transformed_data, config, source_id
+        )
+
+        # 4. Special handling for camera images (trigger ANPR).
+        # Merge images that arrived as S3 keys in the stream event with any
+        # images just uploaded from base64 payload fields.
+        all_image_keys = event.get("image_keys", []) + uploaded_image_keys
+        if all_image_keys:
+            image_key = all_image_keys[0]
             anpr_result = self.anpr.recognize(image_key)
             if anpr_result:
-                # Merge ANPR results into transformed data
                 transformed_data.update({
                     "plate": anpr_result.get("plate"),
                     "confidence": anpr_result.get("confidence"),
                 })
-        
+
         # Validate against schema
         self._validate_data(transformed_data, config)
-        
+
         # 5. Create event in CORE
         response = self.core.create_event(
             event_type_id=config["event_type_id"],
@@ -80,7 +92,7 @@ class EventProcessor:
             source_id=source_id,
             data=transformed_data,
             raw_data_key=event.get("raw_storage_key", ""),
-            image_keys=event.get("image_keys", []),
+            image_keys=all_image_keys,
             transaction_id=event.get("transaction_id"),  # From Puller flow
         )
         
@@ -147,9 +159,61 @@ class EventProcessor:
         """Validate mapped data against event type schema."""
         event_type = config.get("event_type", {})
         fields = event_type.get("fields", {})
-        
+
         for field_name, field_def in fields.items():
             required = field_def.get("required", False)
             if required and field_name not in data:
                 logger.warning(f"Missing required field {field_name} in mapped data")
                 # Could raise error here if strict
+
+    def _handle_base64_images(
+        self, transformed_data: Dict, config: Dict, source_id: str
+    ) -> Tuple[Dict, List[str]]:
+        """
+        For every field listed in config["image_fields"], decode the base64 string
+        found in transformed_data, upload the binary to Garage/S3, and replace the
+        field value with the resulting object key.
+
+        DeviceConfig example:
+            {
+              "data_mapping": {"front_image": "$.imageData", "plate": "$.lp"},
+              "image_fields":  ["front_image"]
+            }
+
+        Returns (updated transformed_data, list of uploaded object keys).
+        The object keys are later appended to image_keys so ANPR can process them.
+        """
+        image_fields: List[str] = config.get("image_fields", [])
+        if not image_fields:
+            return transformed_data, []
+
+        date_prefix = datetime.now(timezone.utc).strftime("%Y/%m/%d")
+        uploaded_keys: List[str] = []
+
+        for field in image_fields:
+            raw_value = transformed_data.get(field)
+            if not raw_value or not isinstance(raw_value, str):
+                continue
+
+            try:
+                # Strip optional data-URI prefix: "data:image/jpeg;base64,<data>"
+                b64_payload = raw_value.split(",", 1)[-1] if "," in raw_value else raw_value
+                image_bytes = base64.b64decode(b64_payload)
+
+                object_key = f"itsapi/{source_id}/{date_prefix}/{uuid.uuid4().hex}_{field}.jpg"
+                self.storage.upload_image(image_bytes, object_key)
+
+                transformed_data[field] = object_key
+                uploaded_keys.append(object_key)
+                logger.info(
+                    "Uploaded base64 image to S3",
+                    extra={"source_id": source_id, "field": field, "object_key": object_key},
+                )
+            except Exception as exc:
+                # Log and keep the original value so the event is not silently dropped.
+                logger.error(
+                    "Failed to upload base64 image",
+                    extra={"source_id": source_id, "field": field, "error": str(exc)},
+                )
+
+        return transformed_data, uploaded_keys

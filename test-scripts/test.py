@@ -7,6 +7,7 @@ Device layout:
     Device 1 – Camera  – multipart ingest with image, no trigger
     Device 2 – Scale   – JSON ingest, triggers puller → Device 3
     Device 3 – Camera  – puller pull target (trigger_url lives here)
+    Device 6 – Camera  – ITSAPI/Digest Auth, JSON + base64 image
   GATE_2 (gate-south):
     Device 4 – Scale   – raw JSON body
     Device 5 – Scale   – raw XML body
@@ -22,8 +23,10 @@ Usage:
 
 Dependencies:
     pip install requests redis
+    (no extra packages needed — HTTPDigestAuth ships with requests)
 """
 import argparse
+import base64
 import json
 import os
 import sys
@@ -31,12 +34,21 @@ import time
 import random
 
 import requests
+from requests.auth import HTTPDigestAuth
 from redis import Redis
 
 # ─── Connection ───────────────────────────────────────────────────────────────
 BASE_URL   = os.getenv("BASE_URL",   "http://localhost:8090")
 VALKEY_URL = os.getenv("VALKEY_URL", "redis://localhost:6380")
 ADMIN_PASS = os.getenv("ADMIN_DEFAULT_PASSWORD")
+
+# ─── ITSAPI camera credentials ────────────────────────────────────────────────
+# These are registered in the Auth service via POST /admin/keys/:id/digest.
+# Override via environment variables when running against a real camera account.
+ITSAPI_USER     = os.getenv("ITSAPI_USER",      "cam_itsapi_01")
+ITSAPI_PASSWORD = os.getenv("ITSAPI_PASSWORD",   "itsapi_secret")
+# Path to a real JPEG to send as Base64. Falls back to the built-in fake JPEG.
+ITSAPI_IMAGE    = os.getenv("ITSAPI_IMAGE_PATH", "test_car.jpg")
 
 GATE_1       = "gate-north"
 GATE_2       = "gate-south"
@@ -66,6 +78,9 @@ K = {
     "dev5_sid": P + "dev5:source_id",  "dev5_key": P + "dev5:api_key",
     "hist_dev_sid": P + "hist:dev:source_id",
     "hist_dev_key": P + "hist:dev:api_key",
+    # ITSAPI camera (Digest Auth)
+    "itsapi_dev_sid": P + "itsapi:dev:source_id",
+    "itsapi_dev_key": P + "itsapi:dev:api_key",
 }
 
 MUCH_KEYS = (
@@ -111,7 +126,8 @@ def reset_all(rv, hdrs):
 
     # Collect all source_id (= API key ID) Valkey keys
     sid_keys = [K["dev1_sid"], K["dev2_sid"], K["dev3_sid"],
-                K["dev4_sid"], K["dev5_sid"], K["hist_dev_sid"]]
+                K["dev4_sid"], K["dev5_sid"], K["hist_dev_sid"],
+                K["itsapi_dev_sid"]]  # ITSAPI camera
     sid_keys += ["omnigate:test:much_puller_sid"]
     sid_keys += [f"omnigate:test:much_dev{i}_sid" for i in range(5)]
 
@@ -229,6 +245,82 @@ def ensure_device_config(hdrs, source_id, event_type_id, gate_id, **kw):
     cfg_id = cr.json().get("id")
     ok(f"Created device config  (source_id={source_id}, gate={gate_id})")
     return cfg_id
+
+
+# ─── ITSAPI helpers ───────────────────────────────────────────────────────────
+def encode_image_base64(path: str, fallback: bytes = FAKE_JPEG) -> str:
+    """
+    Read a JPEG file from disk and return a plain base64 string (no data-URI prefix).
+
+    If the file is not found, logs a warning and falls back to FAKE_JPEG so the
+    test can run in CI environments without real image assets.
+    """
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        info(f"Loaded image '{path}'  ({len(raw)} bytes)")
+    except FileNotFoundError:
+        warn(f"Image file '{path}' not found — using built-in fake JPEG ({len(fallback)} bytes)")
+        raw = fallback
+    return base64.b64encode(raw).decode("utf-8")
+
+
+def setup_itsapi_device(rv, hdrs, plate_type_id) -> str:
+    """
+    Register a Device 6 — ITSAPI camera that authenticates via HTTP Digest Auth.
+
+    Steps:
+      1. Create an API key (same as other devices).
+      2. POST /admin/keys/:id/digest  — store HA1 = MD5(user:realm:password)
+         so the Auth service can validate Digest responses without a plaintext
+         password ever persisting in the database.
+      3. Create DeviceConfig with image_fields=["front_image"] so the Adapter
+         knows to decode the base64 blob and upload it to Garage/S3.
+    """
+    step("Device 6 — ITSAPI Camera (Digest Auth)")
+
+    itsapi_dev_sid, _ = get_or_create_api_key(
+        rv, hdrs,
+        K["itsapi_dev_sid"], K["itsapi_dev_key"],
+        name="Test – Device 6 (ITSAPI Camera, Digest)",
+        gate_id=GATE_1,
+        perms=["ingest:events"],
+    )
+
+    # Register Digest credentials.
+    # The endpoint computes HA1 = MD5(username:realm:password) server-side and
+    # stores only the hash — the plaintext password is never persisted.
+    r = requests.post(
+        f"{BASE_URL}/api/auth/admin/keys/{itsapi_dev_sid}/digest",
+        headers=hdrs,
+        json={"digest_username": ITSAPI_USER, "digest_password": ITSAPI_PASSWORD},
+        timeout=10,
+    )
+    if r.status_code == 200:
+        ok(f"Digest credentials registered  (username={ITSAPI_USER})")
+    elif r.status_code == 409:
+        skip(f"Digest credentials already set  (username={ITSAPI_USER})")
+    else:
+        warn(f"Digest credential endpoint returned {r.status_code}: {r.text}")
+
+    # DeviceConfig:
+    #   data_mapping  – JSONPath expressions that match the ITSAPI JSON payload
+    #   image_fields  – tells the Adapter which mapped fields contain base64 images
+    ensure_device_config(
+        hdrs, itsapi_dev_sid, plate_type_id,
+        gate_id=GATE_1,
+        data_type="json",
+        data_mapping={
+            "plate":       "$.lp",
+            "confidence":  "$.confidence",
+            "front_image": "$.imageData",
+        },
+        image_fields=["front_image"],
+        trigger_enabled=False,
+        triggers=[],
+    )
+
+    return itsapi_dev_sid
 
 
 # ─── Environment setup ────────────────────────────────────────────────────────
@@ -839,6 +931,98 @@ def test_searchable_key_crud(hdrs, plate_type_id, hist_dev_sid, hist_dev_key):
     ok("searchable_key restored to 'plate'")
 
 
+# ─── Test 2.14 – ITSAPI camera: Digest Auth + Base64 image ───────────────────
+def test_itsapi_digest_ingest(hdrs, itsapi_dev_sid):
+    """
+    Simulates an ITSAPI-protocol ANPR camera:
+
+    Authentication flow (handled transparently by HTTPDigestAuth):
+      1. requests sends the POST without Authorization.
+      2. NGINX forwards to /auth_validate → Auth service returns 401 +
+         WWW-Authenticate: Digest realm="omnigate", nonce="<fresh>".
+      3. NGINX captures the header and returns it to the client.
+      4. requests.HTTPDigestAuth computes the response hash and retries
+         with Authorization: Digest username=..., response=...
+      5. Auth service validates the hash, injects X-Source-ID / X-Gate-ID /
+         X-Permissions, and NGINX proxies the request to Ingestor.
+
+    Image handling (on the Adapter side):
+      - The Adapter reads config["image_fields"] = ["front_image"].
+      - It base64-decodes the value at $.imageData, uploads the bytes to
+        Garage/S3, and replaces the field with the resulting object key.
+      - Core stores the event with the S3 key instead of the raw blob.
+    """
+    step("Test 2.14  ·  ITSAPI Camera — HTTP Digest Auth + Base64 Image in JSON")
+
+    before = count_events(hdrs, itsapi_dev_sid)
+
+    # Encode the test image to a plain base64 string (no data-URI prefix).
+    image_b64 = encode_image_base64(ITSAPI_IMAGE)
+    info(f"Base64 payload size: {len(image_b64)} chars")
+
+    # Build the ITSAPI JSON payload.
+    # Field names match the data_mapping in Device 6's DeviceConfig:
+    #   "plate"       ← $.lp
+    #   "confidence"  ← $.confidence
+    #   "front_image" ← $.imageData
+    payload = {
+        "lp":         "UA1234BB",
+        "confidence": 0.987,
+        "imageData":  image_b64,
+        "timestamp":  time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "device_id":  ITSAPI_USER,
+        "speed_kmh":  65.3,
+    }
+
+    try:
+        r = requests.post(
+            f"{BASE_URL}/ingest/event",
+            # HTTPDigestAuth intercepts the 401 challenge and automatically
+            # retries with the correct Authorization: Digest ... header.
+            auth=HTTPDigestAuth(ITSAPI_USER, ITSAPI_PASSWORD),
+            # json= serialises to JSON and sets Content-Type: application/json.
+            # We override it to match ITSAPI spec (charset annotation).
+            json=payload,
+            headers={"Content-Type": "application/json;charset=UTF-8"},
+            timeout=15,
+        )
+    except requests.exceptions.ConnectionError as exc:
+        fail(f"ITSAPI connection error: {exc}")
+
+    info(f"Response: HTTP {r.status_code}  body={r.text[:120]}")
+
+    if r.status_code != 202:
+        fail(f"Ingestor rejected ITSAPI event ({r.status_code}): {r.text}")
+    ok(f"Ingestor accepted ITSAPI event  (transaction_id={r.json().get('transaction_id')})")
+
+    # Wait for the Adapter to process the event and Core to persist it.
+    ev = wait_for_new_event(hdrs, itsapi_dev_sid, before, "ITSAPI camera", timeout=30)
+    assert_gate_id(ev, GATE_1, "ITSAPI camera")
+    assert_type_code(ev, "PLATE_EVENT", "ITSAPI camera")
+    assert_raw_data_key(ev, "ITSAPI camera", hdrs)
+
+    # The plate number comes from JSONPath $.lp → mapped to "plate".
+    data = ev.get("data") or {}
+    if data.get("plate") == "UA1234BB":
+        ok(f"plate correctly mapped from $.lp  ('{data['plate']}')")
+    else:
+        warn(f"plate field unexpected: {data.get('plate')!r}")
+
+    # Verify that the Adapter replaced the raw base64 blob with an S3 object key.
+    # The Adapter uploads to itsapi/{source_id}/YYYY/MM/DD/{uuid}_front_image.jpg
+    # and stores that path in place of the original base64 string.
+    front_image = data.get("front_image", "")
+    if front_image.startswith("itsapi/"):
+        ok(f"Base64 blob replaced by S3 key: {front_image}")
+    elif front_image:
+        warn(
+            f"front_image present but not an S3 key (Adapter may still be processing): "
+            f"{front_image[:80]}…"
+        )
+    else:
+        warn("front_image field absent from Core event — check Adapter logs")
+
+
 # ─── Gate helpers for load test ───────────────────────────────────────────────
 def get_or_create_gate(hdrs, gate_id, name, settings):
     all_gates = requests.get(f"{BASE_URL}/api/v1/gates", headers=hdrs, timeout=10).json()
@@ -976,6 +1160,11 @@ def main():
     test_raw_xml_body(hdrs, dev5_sid, dev5_key)
     test_transaction_isolation(hdrs, dev1_sid, dev4_sid)
     test_matchmaker_external_transaction(hdrs, dev1_sid, dev1_key)
+
+    # ── ITSAPI / Digest Auth tests ──────────────────────────────────────────
+    # Device 6 reuses the PLATE_EVENT type already created in setup().
+    itsapi_dev_sid = setup_itsapi_device(rv, hdrs, plate_type_id)
+    test_itsapi_digest_ingest(hdrs, itsapi_dev_sid)
 
     plate_type_id, hist_dev_sid, hist_dev_key = setup_history_env(rv, hdrs)
     test_searchable_value_hook(hdrs, plate_type_id, hist_dev_sid, hist_dev_key)

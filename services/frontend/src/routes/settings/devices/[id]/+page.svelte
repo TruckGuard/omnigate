@@ -47,6 +47,8 @@
   // Outgoing triggers: devices THIS device activates after its own event
   let triggerEnabled = $state(false);
   let triggers       = $state<Trigger[]>([]);
+  // Fields containing base64-encoded images; Adapter decodes and uploads to S3
+  let imageFields    = $state<string[]>([]);
 
   let latestEvent = $state<Event | null>(null);
 
@@ -102,6 +104,7 @@
           triggerUrl     = cfg.trigger_url ?? '';
           triggerEnabled = cfg.trigger_enabled;
           triggers       = cfg.triggers ?? [];
+          imageFields    = cfg.image_fields ?? [];
           api.events.latestForSource(cfg.source_id)
             .then(e => { latestEvent = e; })
             .catch(() => {});
@@ -178,6 +181,7 @@
           trigger_url: triggerUrl || null,
           trigger_enabled: triggerEnabled,
           triggers: cleanTriggers,
+          image_fields: imageFields,
         });
         toast.success('Пристрій створено');
       } else {
@@ -187,6 +191,7 @@
           trigger_url: triggerUrl || null,
           trigger_enabled: triggerEnabled,
           triggers: cleanTriggers,
+          image_fields: imageFields,
         });
         toast.success('Пристрій збережено');
       }
@@ -404,6 +409,30 @@
             rawEvent={latestEvent ?? undefined}
           />
         </Field>
+
+        {#if Object.keys(mappingObj).length > 0}
+          <Field
+            label="Поля з base64-зображеннями"
+            hint="Позначте поля, що містять зображення у форматі base64. Адаптер декодує їх та завантажить у сховище."
+          >
+            <div class="flex flex-wrap gap-2">
+              {#each Object.keys(mappingObj) as field}
+                {@const isImage = imageFields.includes(field)}
+                <button
+                  type="button"
+                  onclick={() => {
+                    imageFields = isImage
+                      ? imageFields.filter(f => f !== field)
+                      : [...imageFields, field];
+                  }}
+                  class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-mono transition-colors {isImage ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/50'}"
+                >
+                  {field}{#if isImage} ✓{/if}
+                </button>
+              {/each}
+            </div>
+          </Field>
+        {/if}
       </CardContent>
     </Card>
 

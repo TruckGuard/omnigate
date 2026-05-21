@@ -56,6 +56,29 @@ func MigrateDB(db *gorm.DB) {
 		CREATE INDEX IF NOT EXISTS idx_events_searchable_trgm
 		ON events USING GIN (searchable_value gin_trgm_ops)
 	`)
+
+	// FK для рядкового поля gate_id (природній ключ, не UUID).
+	// GORM не генерує їх автоматично без асоціативних полів у моделях,
+	// тому додаємо вручну. DO/EXCEPTION — ідемпотентний варіант без IF NOT EXISTS.
+	for _, stmt := range []string{
+		`DO $$ BEGIN
+			ALTER TABLE transactions ADD CONSTRAINT fk_transactions_gate_id
+				FOREIGN KEY (gate_id) REFERENCES gates(gate_id)
+				ON UPDATE CASCADE ON DELETE RESTRICT;
+		EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+		`DO $$ BEGIN
+			ALTER TABLE events ADD CONSTRAINT fk_events_gate_id
+				FOREIGN KEY (gate_id) REFERENCES gates(gate_id)
+				ON UPDATE CASCADE ON DELETE RESTRICT;
+		EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+		`DO $$ BEGIN
+			ALTER TABLE device_configs ADD CONSTRAINT fk_device_configs_gate_id
+				FOREIGN KEY (gate_id) REFERENCES gates(gate_id)
+				ON UPDATE CASCADE ON DELETE RESTRICT;
+		EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+	} {
+		db.Exec(stmt)
+	}
 }
 
 func InitRedis(addr string) {

@@ -101,6 +101,8 @@ export interface DeviceConfig {
   gate_id: string;
   data_mapping: Record<string, string>;
   data_type: string;
+  /** Field names from data_mapping whose values are base64-encoded images. */
+  image_fields: string[];
   /** URL Puller calls when THIS device is the pull target of another device's trigger. */
   trigger_url: string | null;
   /** List of target devices this device activates after its own event is processed. */
@@ -153,6 +155,7 @@ export interface APIKey {
   gate_id: string;
   permissions: Permission[];
   created_at: string;
+  digest_username?: string;
 }
 
 export interface ValidateResponse {

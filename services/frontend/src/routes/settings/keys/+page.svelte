@@ -18,7 +18,7 @@
   import {
     Select, SelectContent, SelectItem, SelectTrigger,
   } from '$lib/components/ui/select/index.js';
-  import { Plus, Trash2, KeyRound, ShieldCheck, Check } from 'lucide-svelte';
+  import { Plus, Trash2, KeyRound, ShieldCheck, Check, Cpu } from 'lucide-svelte';
   import PermGuard from '$lib/components/PermGuard.svelte';
   import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
 
@@ -49,6 +49,46 @@
 
   // Permissions form
   let editPermIds  = $state<string[]>([]);
+
+  // Digest Auth form
+  let digestOpen      = $state(false);
+  let digestUsername  = $state('');
+  let digestPassword  = $state('');
+  let digestConfirm   = $state('');
+
+  function openDigest(k: APIKey) {
+    selected = k;
+    digestUsername = k.digest_username ?? '';
+    digestPassword = '';
+    digestConfirm  = '';
+    digestOpen = true;
+  }
+
+  async function handleSetDigest() {
+    if (!selected) return;
+    if (digestPassword !== digestConfirm) { toast.error('Паролі не збігаються'); return; }
+    saving = true;
+    try {
+      await api.auth.keys.setDigest(selected.id, digestUsername, digestPassword);
+      toast.success('Digest Auth налаштовано');
+      digestOpen = false;
+      await load();
+    } catch {
+      toast.error('Помилка збереження Digest Auth');
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function handleClearDigest(k: APIKey) {
+    try {
+      await api.auth.keys.clearDigest(k.id);
+      toast.success('Digest Auth видалено');
+      await load();
+    } catch {
+      toast.error('Помилка видалення Digest Auth');
+    }
+  }
 
   async function load() {
     try {
@@ -190,8 +230,9 @@
           <TableHead class="w-[160px]">Шлагбаум</TableHead>
           <TableHead class="w-[80px]">Статус</TableHead>
           <TableHead class="w-[100px]">Дозволи</TableHead>
+          <TableHead class="w-[110px]">Digest Auth</TableHead>
           <TableHead class="w-[110px]">Створено</TableHead>
-          <TableHead class="w-[100px]"></TableHead>
+          <TableHead class="w-[120px]"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -215,10 +256,20 @@
             <TableCell class="text-xs text-muted-foreground">
               {k.permissions.length} {k.permissions.length === 1 ? 'дозвіл' : 'дозволів'}
             </TableCell>
+            <TableCell class="text-xs">
+              {#if k.digest_username}
+                <span class="font-mono text-primary">{k.digest_username}</span>
+              {:else}
+                <span class="text-muted-foreground">—</span>
+              {/if}
+            </TableCell>
             <TableCell class="text-xs text-muted-foreground">{fmtDate(k.created_at)}</TableCell>
             <TableCell>
               <PermGuard permission="manage:keys">
                 <div class="flex gap-1">
+                  <Button variant="ghost" size="icon-sm" title="Digest Auth (ITSAPI)" onclick={() => openDigest(k)}>
+                    <Cpu size={14} class={k.digest_username ? 'text-primary' : ''} />
+                  </Button>
                   <Button variant="ghost" size="icon-sm" title="Дозволи" onclick={() => openPerms(k)}>
                     <ShieldCheck size={14} />
                   </Button>
@@ -381,6 +432,47 @@
       <PermGuard permission="manage:keys">
         <Button onclick={handlePerms} disabled={saving}>
           {saving ? 'Збереження…' : 'Оновити дозволи'}
+        </Button>
+      </PermGuard>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+<!-- Digest Auth dialog -->
+<Dialog bind:open={digestOpen}>
+  <DialogContent class="max-w-sm">
+    <DialogHeader>
+      <DialogTitle>Digest Auth — {selected?.owner_name}</DialogTitle>
+      <DialogDescription>
+        Для ITSAPI-камер, що не підтримують заголовки X-API-Key.
+        Пароль не зберігається — лише MD5-хеш.
+      </DialogDescription>
+    </DialogHeader>
+    <div class="space-y-4 py-2">
+      <Field label="Digest username">
+        <Input bind:value={digestUsername} placeholder="cam-north-01" />
+      </Field>
+      <Field label={selected?.digest_username ? 'Новий пароль' : 'Пароль'}>
+        <Input type="password" bind:value={digestPassword} placeholder="••••••••" />
+      </Field>
+      <Field label="Підтвердження пароля">
+        <Input type="password" bind:value={digestConfirm} placeholder="••••••••" />
+      </Field>
+    </div>
+    <DialogFooter class="flex-col gap-2 sm:flex-row">
+      {#if selected?.digest_username}
+        <Button
+          variant="outline"
+          class="text-destructive hover:text-destructive sm:mr-auto"
+          onclick={() => { digestOpen = false; handleClearDigest(selected!); }}
+        >
+          Видалити Digest Auth
+        </Button>
+      {/if}
+      <Button variant="outline" onclick={() => (digestOpen = false)}>Скасувати</Button>
+      <PermGuard permission="manage:keys">
+        <Button onclick={handleSetDigest} disabled={saving || !digestUsername || !digestPassword}>
+          {saving ? 'Збереження…' : 'Зберегти'}
         </Button>
       </PermGuard>
     </DialogFooter>

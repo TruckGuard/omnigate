@@ -227,3 +227,47 @@ func InvalidateUserCache(userID uint) {
 	key := fmt.Sprintf("user_perms:%d", userID)
 	RDB.Del(ctx, key)
 }
+
+// digestNonceTTL is how long a Digest nonce stays valid.
+// Cameras may reuse the same nonce for multiple requests within this window.
+const digestNonceTTL = 5 * time.Minute
+
+// StoreDigestNonce persists a fresh nonce in Valkey.
+func StoreDigestNonce(nonce string) {
+	RDB.Set(ctx, "digest:nonce:"+nonce, "1", digestNonceTTL)
+}
+
+// ValidateDigestNonce returns true if the nonce exists (not yet expired).
+// The nonce is NOT consumed so cameras can reuse it within the TTL window
+// without triggering a re-challenge on every request.
+func ValidateDigestNonce(nonce string) bool {
+	n, err := RDB.Exists(ctx, "digest:nonce:"+nonce).Result()
+	return err == nil && n > 0
+}
+
+// FindDeviceByDigestUsername looks up an active API key by its Digest username.
+// Returns the source metadata, the stored HA1 hash, and whether the lookup succeeded.
+func FindDeviceByDigestUsername(username string) (models.SourceMetadata, string, bool) {
+	var ak models.APIKey
+	if err := DB.Preload("Permissions").
+		Where("digest_username = ? AND is_active = true", username).
+		First(&ak).Error; err != nil {
+		return models.SourceMetadata{}, "", false
+	}
+	if ak.DigestHA1 == nil || *ak.DigestHA1 == "" {
+		return models.SourceMetadata{}, "", false
+	}
+
+	perms := make([]string, 0, len(ak.Permissions))
+	for _, p := range ak.Permissions {
+		perms = append(perms, p.ID)
+	}
+
+	meta := models.SourceMetadata{
+		ID:          fmt.Sprintf("%d", ak.ID),
+		Name:        ak.OwnerName,
+		GateID:      ak.GateID,
+		Permissions: perms,
+	}
+	return meta, *ak.DigestHA1, true
+}

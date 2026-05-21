@@ -12,7 +12,7 @@ type Transaction struct {
 	GateID string    `gorm:"type:varchar(50);not null" json:"gate_id"`
 	Note   string    `gorm:"type:text" json:"note"`
 
-	Events []Event `gorm:"foreignKey:TransactionID" json:"events,omitempty"`
+	Events []Event `gorm:"foreignKey:TransactionID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"events,omitempty"`
 
 	// IsOpen is populated at query time by checking Valkey — not stored in DB.
 	IsOpen bool `gorm:"-" json:"is_open"`

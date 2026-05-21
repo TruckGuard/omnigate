@@ -94,6 +94,7 @@ func HandleCreateDeviceConfig(c *gin.Context) {
 		TriggerURL     *string        `json:"trigger_url"`
 		Triggers       datatypes.JSON `json:"triggers"`
 		TriggerEnabled bool           `json:"trigger_enabled"`
+		ImageFields    datatypes.JSON `json:"image_fields"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -105,6 +106,10 @@ func HandleCreateDeviceConfig(c *gin.Context) {
 	if triggers == nil {
 		triggers = datatypes.JSON([]byte("[]"))
 	}
+	imageFields := req.ImageFields
+	if imageFields == nil {
+		imageFields = datatypes.JSON([]byte("[]"))
+	}
 
 	config := &models.DeviceConfig{
 		SourceID:       req.SourceID,
@@ -115,6 +120,7 @@ func HandleCreateDeviceConfig(c *gin.Context) {
 		TriggerURL:     req.TriggerURL,
 		Triggers:       triggers,
 		TriggerEnabled: req.TriggerEnabled,
+		ImageFields:    imageFields,
 		Enabled:        true,
 	}
 
@@ -144,6 +150,7 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 		TriggerURL     *string          `json:"trigger_url"`
 		TriggerEnabled *bool            `json:"trigger_enabled"`
 		Triggers       *json.RawMessage `json:"triggers"`
+		ImageFields    *json.RawMessage `json:"image_fields"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -170,6 +177,9 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 	}
 	if req.Triggers != nil {
 		config.Triggers = datatypes.JSON(*req.Triggers)
+	}
+	if req.ImageFields != nil {
+		config.ImageFields = datatypes.JSON(*req.ImageFields)
 	}
 
 	if err := repository.UpdateDeviceConfig(&config); err != nil {
