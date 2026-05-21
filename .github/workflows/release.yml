@@ -76,7 +76,9 @@ jobs:
       - name: Download all binaries
         uses: actions/download-artifact@v4
         with:
+          pattern: scale-daemon-*
           path: dist/
+          merge-multiple: true
 
       - name: Collect release assets
         run: |
@@ -84,7 +86,6 @@ jobs:
           find dist/ -type f -name 'scale-daemon-*' -exec cp {} release-assets/ \;
           cp edge/scale-daemon/install.sh           release-assets/
           cp edge/scale-daemon/scale-daemon.service release-assets/
-          cp edge/scale-daemon/config.example.yml   release-assets/
           ls -lh release-assets/
 
       - name: Create GitHub Release

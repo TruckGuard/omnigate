@@ -195,7 +195,7 @@ func sendWeight(ctx context.Context, cfg *config, weightKg int) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if cfg.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+		req.Header.Set("X-API-Key", cfg.APIKey)
 	}
 
 	resp, err := httpClient.Do(req)
