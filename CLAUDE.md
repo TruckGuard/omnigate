@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 make env-up          # Copy .env.example to .env (required before first run)
 make dev-up          # Start all services
 make dev-up-build    # Start with rebuild
-make dev-init        # Initialize storage buckets (Garage/MinIO) — run once after first dev-up
+make dev-init        # Initialize storage buckets (Garage) — run once after first dev-up
 make logs            # Stream all service logs
 
 # Lifecycle
@@ -64,7 +64,7 @@ IoT Device → [NGINX Gateway :8090]
                                 └─ If trigger configured → "events:puller"
                                                 ↓
                                         [Puller] (consumer group: puller-workers)
-                                                ├─ GET trigger_url (external API)
+                                                ├─ GET/RTSP trigger_url (external API/camera)
                                                 └─ Re-inject into Ingestor REST API
 ```
 

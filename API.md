@@ -27,7 +27,6 @@ Handles user authentication, session management, and API key generation.
 *   `POST /api/auth/sessions/revoke-all` - Revoke all active sessions for the user.
 *   `POST /api/auth/change-password` - Update the user's password.
 *   `GET /api/auth/hierarchy` - Get permission hierarchy.
-*   `GET /api/auth/permissions` - List all available permissions.
 
 ### Admin/Management Endpoints
 
@@ -53,8 +52,11 @@ Handles user authentication, session management, and API key generation.
 *   `DELETE /api/auth/admin/keys/:id` - Revoke/Delete an API key. **[Requires: `manage:keys`]**
 *   `PUT /api/auth/admin/keys/:id/permissions` - Modify permissions of a key. **[Requires: `manage:keys`]**
 
+#### Permissions
+*   `GET /api/auth/admin/permissions` - List all available permissions. **[Requires: `read:roles`]**
+
 #### Audit
-*   `GET /api/auth/audit` - View the system audit log. **[Requires: `read:audit`]**
+*   `GET /api/auth/audit` - View the system audit log. **[Requires: `read:audit`] [Not Implemented / Planned]**
 
 ---
 
@@ -62,8 +64,7 @@ Handles user authentication, session management, and API key generation.
 
 Handles incoming raw data from peripheral devices (cameras, scales). This service requires a valid `X-Gate-ID` and `X-Source-ID` injected by the Auth gateway.
 
-*   `POST /ingest/camera` - Ingest ANPR camera data. Supports `multipart/form-data` to handle raw JSON payload alongside image binaries. Images are uploaded directly to Garage (S3 compatible) and metadata is published to Valkey. **[Requires: `ingest:events`]**
-*   `POST /ingest/weight` - Ingest scale weight data. Accepts JSON payload and publishes to Valkey. **[Requires: `ingest:events`]**
+*   `POST /ingest/event` - Unified ingestion endpoint. Supports `multipart/form-data` to handle raw JSON payload alongside optional image binaries, or raw JSON/XML/text bodies. Images are uploaded directly to Garage (S3 compatible) and metadata is published to Valkey. Automatically initiates or appends to a sticky transaction. **[Requires: `ingest:events`]**
 
 ---
 
@@ -74,23 +75,27 @@ The central orchestrator and data layer for the system. It manages structured ev
 ### Events
 *   `GET /api/v1/events` - List and filter events. **[Requires: `read:events` or `read:events:all`]**
 *   `POST /api/v1/events` - Create a structured event manually (usually done by Adapter). **[Requires: `create:events` or `create:events:all`]**
+*   `GET /api/v1/events/latest` - Get the latest event for a given source device ID (requires `source_id` query param). **[Requires: `read:events` or `read:events:all`]**
 *   `GET /api/v1/events/:id` - Get details of a specific event. **[Requires: `read:events` or `read:events:all`]**
-*   `PUT /api/v1/events/:id` - Update an event. **[Requires: `update:events` or `update:events:all`]**
+*   `GET /api/v1/events/:id/raw` - Retrieve the raw, unmapped payload of a specific event. **[Requires: `read:events` or `read:events:all`]**
 *   `DELETE /api/v1/events/:id` - Delete an event. **[Requires: `delete:events` or `delete:events:all`]**
 
 ### Transactions (Sticky Sessions)
 *   `GET /api/v1/transactions` - List active and historical transactions. **[Requires: `read:transactions` or `read:transactions:all`]**
+*   `GET /api/v1/transactions/history` - Query transaction history with fuzzy plate search. **[Requires: `read:transactions` or `read:transactions:all`]**
 *   `POST /api/v1/transactions` - Manually open a transaction. **[Requires: `create:transactions` or `create:transactions:all`]**
 *   `GET /api/v1/transactions/:id` - Get details of a transaction including associated events. **[Requires: `read:transactions` or `read:transactions:all`]**
-*   `PUT /api/v1/transactions/:id` - Update transaction status (e.g., closing it). **[Requires: `update:transactions` or `update:transactions:all`]**
+*   `PUT /api/v1/transactions/:id` - Update transaction status (e.g., updating note, metadata). **[Requires: `update:transactions` or `update:transactions:all`]**
+*   `POST /api/v1/transactions/:id/close` - Close an active transaction. **[Requires: `transactions:close`]**
 *   `DELETE /api/v1/transactions/:id` - Delete a transaction. **[Requires: `delete:transactions` or `delete:transactions:all`]**
 
 ### Device Configurations
-*   `GET /api/v1/configs/device` - List device configurations. **[Requires: `read:configs` or `read:configs:all`]**
-*   `GET /api/v1/configs/device/:source_id` - Fetch configuration mapping for a specific device. **[Requires: `read:configs` or `read:configs:all`]**
-*   `POST /api/v1/configs/device` - Create a new device configuration. **[Requires: `create:configs` or `create:configs:all`]**
-*   `PUT /api/v1/configs/device/:id` - Update an existing configuration. **[Requires: `update:configs` or `update:configs:all`]**
-*   `DELETE /api/v1/configs/device/:id` - Remove a device configuration. **[Requires: `delete:configs` or `delete:configs:all`]**
+*   `GET /api/v1/configs/devices` - List device configurations. **[Requires: `read:configs` or `read:configs:all`]**
+*   `GET /api/v1/configs/devices/:source_id` - Fetch configuration mapping for a specific device. **[Requires: `read:configs` or `read:configs:all`]**
+*   `POST /api/v1/configs/devices` - Create a new device configuration. **[Requires: `create:configs` or `create:configs:all`]**
+*   `PUT /api/v1/configs/devices/:id` - Update an existing configuration. **[Requires: `update:configs` or `update:configs:all`]**
+*   `POST /api/v1/configs/devices/:id/trigger` - Manually trigger puller execution for a device config. **[Requires: `create:configs` or `create:configs:all`]**
+*   `DELETE /api/v1/configs/devices/:id` - Remove a device configuration. **[Requires: `delete:configs` or `delete:configs:all`]**
 
 ### Event Types (Schemas)
 *   `GET /api/v1/types` - List all event type schemas. **[Requires: `read:types` or `read:types:all`]**
@@ -104,6 +109,8 @@ The central orchestrator and data layer for the system. It manages structured ev
 *   `GET /api/v1/gates/:id` - Get gate details. **[Requires: `read:gates` or `read:gates:all`]**
 *   `POST /api/v1/gates` - Create a new gate. **[Requires: `create:gates` or `create:gates:all`]**
 *   `PUT /api/v1/gates/:id` - Update a gate. **[Requires: `update:gates` or `update:gates:all`]**
+*   `PUT /api/v1/gates/:id/settings` - Update gate-specific settings (TTL, event limits). **[Requires: `update:gates` or `update:gates:all`]**
+*   `GET /api/v1/gates/:id/stats` - Get gate statistics (e.g. event count). **[Requires: `read:gates` or `read:gates:all`]**
 *   `DELETE /api/v1/gates/:id` - Delete a gate. **[Requires: `delete:gates` or `delete:gates:all`]**
 
 ### User Profiles
@@ -117,9 +124,12 @@ The central orchestrator and data layer for the system. It manages structured ev
 
 ## 4. Puller Service (Internal)
 
-An internal worker service responsible for polling external APIs when triggered by the Adapter.
+An asynchronous background worker responsible for polling external APIs (HTTP/RTSP) when triggered by the Adapter.
 
-*   `POST /pull` (Internal) - Triggers a pull request to an external `trigger_url` and ferries the received data back into the Ingestor pipeline linked via a `transaction_id`.
+The Puller does not expose any HTTP endpoints. It listens to the Valkey stream `events:puller` (consumer group `puller-workers`). Upon receiving a trigger message:
+1. It retrieves the `trigger_url` from the target device configuration.
+2. It fetches data/images from the camera or peripheral.
+3. It re-injects that data back to the Ingestor's `POST /ingest/event` endpoint using the original `transaction_id` and the triggered device's `source_id` (authenticating with a worker API key holding `ingest:assume-source` permissions).
 
 ---
 

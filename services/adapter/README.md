@@ -22,8 +22,8 @@ It operates as a background consumer for all hardware events:
 ### 3. Tech Stack
 
 - **Language**: [Python 3.12+](https://www.python.org/)
-- **Stream Processing**: [Redis Streams](https://redis.io/docs/data-types/streams/)
-- **Infrastructure**: [Valkey/Redis](https://valkey.io/), [Garage Storage](https://garagehq.deuxfleurs.fr/)
+- **Stream Processing**: [Valkey Streams](https://valkey.io/)
+- **Infrastructure**: [Valkey](https://valkey.io/), [Garage Storage](https://garagehq.deuxfleurs.fr/)
 - **Observability**: [OpenTelemetry](https://opentelemetry.io/)
 
 ### 4. Getting Started
@@ -31,7 +31,7 @@ It operates as a background consumer for all hardware events:
 #### **Prerequisites**
 
 - Python 3.12+
-- Redis/Valkey
+- Valkey
 - Access to Core & ANPR APIs
 - Access to Garage Storage
 
@@ -49,8 +49,8 @@ It operates as a background consumer for all hardware events:
 ### 5. Configuration (Environment Variables)
 
 ```env
-VALKEY_ADDR=localhost:6379
-CORE_URL=http://localhost:8081
+VALKEY_ADDR=localhost:6380
+CORE_URL=http://localhost:8090/api/v1
 ANPR_URL=http://localhost:8000
 STORAGE_ENDPOINT=localhost:3900
 STORAGE_ACCESS_KEY=your_access_key

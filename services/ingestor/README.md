@@ -17,7 +17,7 @@ The **Ingestor Service** is the entry point for all IoT data (cameras, scales, s
 
 ### 3. Tech Stack
 
-- **Language**: [Go 1.23+](https://go.dev/)
+- **Language**: [Go 1.25+](https://go.dev/)
 - **Infrastructure**: [Valkey/Redis](https://valkey.io/), [Garage Storage](https://garagehq.deuxfleurs.fr/)
 - **Observability**: [OpenTelemetry](https://opentelemetry.io/)
 
@@ -25,7 +25,7 @@ The **Ingestor Service** is the entry point for all IoT data (cameras, scales, s
 
 #### **Prerequisites**
 
-- Go (v1.23 or higher)
+- Go (v1.25 or higher)
 - Redis/Valkey
 - Access to Garage Storage
 

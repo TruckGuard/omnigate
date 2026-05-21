@@ -23,8 +23,6 @@ tags:
   description: Device mappings and settings
 - name: Core Types
   description: Dynamic event types and schemas
-- name: Puller
-  description: Internal asynchronous pollers
 - name: Health
   description: Service healthchecks
 
@@ -180,7 +178,7 @@ paths:
       responses:
         '200':
           description: Hierarchy returned
-  /api/auth/permissions:
+  /api/auth/admin/permissions:
     get:
       tags:
       - Auth Admin
@@ -604,6 +602,21 @@ paths:
         '201':
           description: OK
       description: '**[Requires: `create:events` or `create:events:all`]**'
+  /api/v1/events/latest:
+    get:
+      tags:
+      - Core Events
+      summary: Get the latest event for a specific device
+      parameters:
+      - name: source_id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      description: '**[Requires: `read:events` or `read:events:all`]**'
   /api/v1/events/{id}:
     get:
       tags:
@@ -632,8 +645,22 @@ paths:
       responses:
         '200':
           description: OK
-
       description: '**[Requires: `delete:events` or `delete:events:all`]**'
+  /api/v1/events/{id}/raw:
+    get:
+      tags:
+      - Core Events
+      summary: Get raw payload of a specific event
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      description: '**[Requires: `read:events` or `read:events:all`]**'
   /api/v1/transactions:
     get:
       tags:
@@ -662,6 +689,22 @@ paths:
         '201':
           description: OK
       description: '**[Requires: `create:transactions` or `create:transactions:all`]**'
+  /api/v1/transactions/history:
+    get:
+      tags:
+      - Core Transactions
+      summary: Query transaction history with fuzzy plate matching
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Plate number fragment
+      responses:
+        '200':
+          description: OK
+      description: '**[Requires: `read:transactions` or `read:transactions:all`]**'
   /api/v1/transactions/{id}:
     get:
       tags:
@@ -715,9 +758,31 @@ paths:
       responses:
         '200':
           description: OK
-
       description: '**[Requires: `delete:transactions` or `delete:transactions:all`]**'
-  /api/v1/configs/device:
+  /api/v1/transactions/{id}/close:
+    post:
+      tags:
+      - Core Transactions
+      summary: Close an active transaction
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Transaction successfully closed
+      description: '**[Requires: `transactions:close`]**'
+  /api/v1/configs/devices:
+    get:
+      tags:
+      - Core Configuration
+      summary: List device configurations
+      responses:
+        '200':
+          description: OK
+      description: '**[Requires: `read:configs` or `read:configs:all`]**'
     post:
       tags:
       - Core Configuration
@@ -754,7 +819,7 @@ paths:
         '201':
           description: OK
       description: '**[Requires: `create:configs` or `create:configs:all`]**'
-  /api/v1/configs/device/{source_id}:
+  /api/v1/configs/devices/{source_id}:
     get:
       tags:
       - Core Configuration
@@ -769,7 +834,7 @@ paths:
         '200':
           description: OK
       description: '**[Requires: `read:configs` or `read:configs:all`]**'
-  /api/v1/configs/device/{id}:
+  /api/v1/configs/devices/{id}:
     put:
       tags:
       - Core Configuration
@@ -797,8 +862,22 @@ paths:
       responses:
         '200':
           description: OK
-
       description: '**[Requires: `delete:configs` or `delete:configs:all`]**'
+  /api/v1/configs/devices/{id}/trigger:
+    post:
+      tags:
+      - Core Configuration
+      summary: Manually trigger puller execution for a device configuration
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '202':
+          description: Accepted (trigger command queued)
+      description: '**[Requires: `create:configs` or `create:configs:all`]**'
   /api/v1/types:
     get:
       tags:
@@ -849,8 +928,51 @@ paths:
       responses:
         '200':
           description: OK
-
       description: '**[Requires: `read:types` or `read:types:all`]**'
+    put:
+      tags:
+      - Core Types
+      summary: Update event type schema
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              - fields
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                fields:
+                  type: object
+      responses:
+        '200':
+          description: OK
+      description: '**[Requires: `update:types` or `update:types:all`]**'
+    delete:
+      tags:
+      - Core Types
+      summary: Delete event type schema
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      description: '**[Requires: `delete:types` or `delete:types:all`]**'
   /api/v1/health:
     get:
       tags:
@@ -861,55 +983,12 @@ paths:
         '200':
           description: OK
 
-  # ==============================
-  # PULLER SERVICE
-  # ==============================
-  /pull/pull:
-
-    post:
-      tags:
-      - Puller
-      summary: Trigger data pull (Internal)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-              - trigger_url
-              - transaction_id
-              - gate_id
-              - source_id
-              properties:
-                trigger_url:
-                  type: string
-                transaction_id:
-                  type: string
-                gate_id:
-                  type: string
-                source_id:
-                  type: string
-                context:
-                  type: object
-      responses:
-        '200':
-          description: Pulled successfully
-  /puller/health:
-    get:
-      tags:
-      - Health
-      summary: Puller Service Health
-      security: []
-      responses:
-        '200':
-          description: OK
   /api/auth/audit:
     get:
       tags:
       - Auth Admin
-      summary: View the system audit log
-      description: '**[Requires: `read:audit`]**'
+      summary: "View the system audit log [Not Implemented / Planned]"
+      description: '**[Requires: `read:audit`] (Planned but not implemented in the current release)**'
       responses:
         '200':
           description: OK
@@ -988,6 +1067,47 @@ paths:
       responses:
         '200':
           description: OK
+  /api/v1/gates/{id}/settings:
+    put:
+      tags:
+      - Core Configuration
+      summary: Update gate settings (TTL, event limits)
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_ttl:
+                  type: integer
+                event_limit:
+                  type: integer
+      responses:
+        '200':
+          description: OK
+      description: '**[Requires: `update:gates` or `update:gates:all`]**'
+  /api/v1/gates/{id}/stats:
+    get:
+      tags:
+      - Core Configuration
+      summary: Get gate statistics
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      description: '**[Requires: `read:gates` or `read:gates:all`]**'
   /api/v1/profiles:
     get:
       tags:
