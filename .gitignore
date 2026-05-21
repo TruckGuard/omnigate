@@ -24,3 +24,7 @@ garage_data/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Observability
+observability/.env
+observability/clickhouse/user_scripts/

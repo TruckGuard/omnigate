@@ -1,0 +1,188 @@
+{
+  "description": "HTTP health check status for all OmniGate services (probe_success via blackbox_exporter)",
+  "id": "omnigate-health",
+  "layout": [
+    {"h": 2, "i": "hc-status", "moved": false, "static": false, "w": 12, "x": 0, "y": 0},
+    {"h": 3, "i": "hc-graph",  "moved": false, "static": false, "w": 12, "x": 0, "y": 2},
+    {"h": 3, "i": "hc-probe",  "moved": false, "static": false, "w": 12, "x": 0, "y": 5}
+  ],
+  "tags": ["omnigate"],
+  "title": "OmniGate — Service Health",
+  "variables": {},
+  "version": "v5",
+  "widgets": [
+    {
+      "description": "1 = healthy, 0 = down. Checks auth:8080/health, ingestor:8080/health, core:8080/health",
+      "fillSpans": false,
+      "id": "hc-status",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "filter": {"expression": ""},
+              "functions": [],
+              "groupBy": [],
+              "having": {"expression": ""},
+              "legend": "",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "hc-status-q",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{instance}}",
+            "name": "A",
+            "query": "probe_success{job=\"omnigate-health\"}"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "softMax": 1,
+      "softMin": 0,
+      "thresholds": [
+        {
+          "index": 0,
+          "keyIndex": 0,
+          "moveYAxisTo": "right",
+          "value": 1,
+          "yAxis": "left"
+        }
+      ],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Service Health (1=up, 0=down)",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "HTTP probe duration in seconds — spikes indicate slow health endpoint response",
+      "fillSpans": false,
+      "id": "hc-probe",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "filter": {"expression": ""},
+              "functions": [],
+              "groupBy": [],
+              "having": {"expression": ""},
+              "legend": "",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "hc-probe-q",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{instance}}",
+            "name": "A",
+            "query": "probe_duration_seconds{job=\"omnigate-health\"}"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Health Probe Duration (s)",
+      "yAxisUnit": "s"
+    },
+    {
+      "description": "Fraction of successful probes in the last 5 minutes per service",
+      "fillSpans": false,
+      "id": "hc-graph",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "filter": {"expression": ""},
+              "functions": [],
+              "groupBy": [],
+              "having": {"expression": ""},
+              "legend": "",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "hc-graph-q",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{instance}}",
+            "name": "A",
+            "query": "avg_over_time(probe_success{job=\"omnigate-health\"}[5m])"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "softMax": 1,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Uptime Ratio (5m window)",
+      "yAxisUnit": "percentunit"
+    }
+  ]
+}

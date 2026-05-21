@@ -1,0 +1,298 @@
+{
+  "description": "Request rate, error rate, and latency for all OmniGate services",
+  "id": "omnigate-overview",
+  "layout": [
+    {"h": 3, "i": "ov-rps",  "moved": false, "static": false, "w": 12, "x": 0, "y": 0},
+    {"h": 3, "i": "ov-err",  "moved": false, "static": false, "w": 12, "x": 0, "y": 3},
+    {"h": 3, "i": "ov-p99",  "moved": false, "static": false, "w": 6,  "x": 0, "y": 6},
+    {"h": 3, "i": "ov-p50",  "moved": false, "static": false, "w": 6,  "x": 6, "y": 6}
+  ],
+  "tags": ["omnigate"],
+  "title": "OmniGate — Services Overview",
+  "variables": {},
+  "version": "v5",
+  "widgets": [
+    {
+      "description": "Server-side spans per second (all OmniGate services, kind=Server)",
+      "fillSpans": false,
+      "id": "ov-rps",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "id": "f1",
+                    "key": {
+                      "dataType": "string",
+                      "id": "service.name--string--resource--false",
+                      "isColumn": false,
+                      "key": "service.name",
+                      "type": "resource"
+                    },
+                    "op": "in",
+                    "value": ["omnigate-auth","omnigate-core","omnigate-ingestor","omnigate-adapter","omnigate-puller"]
+                  },
+                  {
+                    "id": "f2",
+                    "key": {
+                      "dataType": "string",
+                      "id": "kind_string--string----true",
+                      "isColumn": true,
+                      "key": "kind_string",
+                      "type": ""
+                    },
+                    "op": "=",
+                    "value": "Server"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service.name--string--resource--false",
+                  "isColumn": false,
+                  "key": "service.name",
+                  "type": "resource"
+                }
+              ],
+              "having": [],
+              "legend": "{{service.name}}",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "reduceTo": "avg",
+              "spaceAggregation": "sum",
+              "stepInterval": 60,
+              "timeAggregation": "rate"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "ov-rps-q",
+        "promql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "queryType": "builder"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Request Rate (spans/s)",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Error spans per second (has_error = true)",
+      "fillSpans": false,
+      "id": "ov-err",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "id": "f1",
+                    "key": {
+                      "dataType": "string",
+                      "id": "service.name--string--resource--false",
+                      "isColumn": false,
+                      "key": "service.name",
+                      "type": "resource"
+                    },
+                    "op": "in",
+                    "value": ["omnigate-auth","omnigate-core","omnigate-ingestor","omnigate-adapter","omnigate-puller"]
+                  },
+                  {
+                    "id": "f2",
+                    "key": {
+                      "dataType": "bool",
+                      "id": "has_error--bool----true",
+                      "isColumn": true,
+                      "key": "has_error",
+                      "type": ""
+                    },
+                    "op": "=",
+                    "value": true
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service.name--string--resource--false",
+                  "isColumn": false,
+                  "key": "service.name",
+                  "type": "resource"
+                }
+              ],
+              "having": [],
+              "legend": "{{service.name}}",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "reduceTo": "avg",
+              "spaceAggregation": "sum",
+              "stepInterval": 60,
+              "timeAggregation": "rate"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "ov-err-q",
+        "promql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "queryType": "builder"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Error Rate (spans/s)",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "P99 latency from signozspanmetrics histogram (signoz_latency_bucket, ms)",
+      "fillSpans": false,
+      "id": "ov-p99",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "filter": {"expression": ""},
+              "functions": [],
+              "groupBy": [],
+              "having": {"expression": ""},
+              "legend": "",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "ov-p99-q",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{service_name}}",
+            "name": "A",
+            "query": "histogram_quantile(0.99, sum by (service_name, le) (rate(signoz_latency_bucket{service_name=~\"omnigate-.*\"}[5m])))"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "P99 Latency (ms)",
+      "yAxisUnit": "ms"
+    },
+    {
+      "description": "P50 (median) latency from signozspanmetrics histogram (ms)",
+      "fillSpans": false,
+      "id": "ov-p50",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "filter": {"expression": ""},
+              "functions": [],
+              "groupBy": [],
+              "having": {"expression": ""},
+              "legend": "",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "ov-p50-q",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{service_name}}",
+            "name": "A",
+            "query": "histogram_quantile(0.5, sum by (service_name, le) (rate(signoz_latency_bucket{service_name=~\"omnigate-.*\"}[5m])))"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "P50 Latency (ms)",
+      "yAxisUnit": "ms"
+    }
+  ]
+}

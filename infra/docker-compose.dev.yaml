@@ -78,7 +78,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
-
+    networks:
+      - default
+      - omnigate-observability
 
     depends_on:
       db:
@@ -109,7 +111,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
-
+    networks:
+      - default
+      - omnigate-observability
 
     depends_on:
       valkey:
@@ -139,7 +143,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
-
+    networks:
+      - default
+      - omnigate-observability
 
     depends_on:
       db:
@@ -165,6 +171,9 @@ services:
       - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
       - STORAGE_BUCKET=${STORAGE_BUCKET}
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+    networks:
+      - default
+      - omnigate-observability
     # No healthcheck needed for worker, but we wait for dependencies
     depends_on:
       core:
@@ -186,6 +195,9 @@ services:
       - WORKER_API_KEY=${PULLER_API_KEY}
       - VALKEY_ADDR=valkey:6379
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+    networks:
+      - default
+      - omnigate-observability
     depends_on:
       valkey:
         condition: service_healthy
@@ -224,16 +236,10 @@ services:
       - ../services/frontend:/app
       - /app/node_modules
 
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
-    command: ["--config=/etc/otel-collector-config.yaml"]
-    volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
-    ports:
-      - "14317:4317"
-      - "14318:4318"
-
-
 volumes:
   postgres_data:
   garage_data:
+
+networks:
+  omnigate-observability:
+    external: true

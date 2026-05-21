@@ -1,0 +1,396 @@
+{
+  "description": "Event ingestion throughput and processing rates across the OmniGate pipeline",
+  "id": "omnigate-pipeline",
+  "layout": [
+    {"h": 3, "i": "pl-ingest",  "moved": false, "static": false, "w": 6,  "x": 0, "y": 0},
+    {"h": 3, "i": "pl-core",   "moved": false, "static": false, "w": 6,  "x": 6, "y": 0},
+    {"h": 3, "i": "pl-errors", "moved": false, "static": false, "w": 6,  "x": 0, "y": 3},
+    {"h": 3, "i": "pl-avg",    "moved": false, "static": false, "w": 6,  "x": 6, "y": 3},
+    {"h": 3, "i": "pl-ops",    "moved": false, "static": false, "w": 12, "x": 0, "y": 6}
+  ],
+  "tags": ["omnigate"],
+  "title": "OmniGate — Event Pipeline",
+  "variables": {},
+  "version": "v5",
+  "widgets": [
+    {
+      "description": "POST /ingest/event requests per second handled by the Ingestor",
+      "fillSpans": false,
+      "id": "pl-ingest",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "id": "f1",
+                    "key": {
+                      "dataType": "string",
+                      "id": "service.name--string--resource--false",
+                      "isColumn": false,
+                      "key": "service.name",
+                      "type": "resource"
+                    },
+                    "op": "=",
+                    "value": "omnigate-ingestor"
+                  },
+                  {
+                    "id": "f2",
+                    "key": {
+                      "dataType": "string",
+                      "id": "kind_string--string----true",
+                      "isColumn": true,
+                      "key": "kind_string",
+                      "type": ""
+                    },
+                    "op": "=",
+                    "value": "Server"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [],
+              "having": [],
+              "legend": "ingestor",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "reduceTo": "avg",
+              "spaceAggregation": "sum",
+              "stepInterval": 60,
+              "timeAggregation": "rate"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "pl-ingest-q",
+        "promql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "queryType": "builder"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Events Ingested (req/s)",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Requests to the Core API, broken down by operation (span name)",
+      "fillSpans": false,
+      "id": "pl-core",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "id": "f1",
+                    "key": {
+                      "dataType": "string",
+                      "id": "service.name--string--resource--false",
+                      "isColumn": false,
+                      "key": "service.name",
+                      "type": "resource"
+                    },
+                    "op": "=",
+                    "value": "omnigate-core"
+                  },
+                  {
+                    "id": "f2",
+                    "key": {
+                      "dataType": "string",
+                      "id": "kind_string--string----true",
+                      "isColumn": true,
+                      "key": "kind_string",
+                      "type": ""
+                    },
+                    "op": "=",
+                    "value": "Server"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "name--string----true",
+                  "isColumn": true,
+                  "key": "name",
+                  "type": ""
+                }
+              ],
+              "having": [],
+              "legend": "{{name}}",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "reduceTo": "avg",
+              "spaceAggregation": "sum",
+              "stepInterval": 60,
+              "timeAggregation": "rate"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "pl-core-q",
+        "promql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "queryType": "builder"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Core API Rate by Operation",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Error spans per second across all OmniGate services",
+      "fillSpans": false,
+      "id": "pl-errors",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "id": "f1",
+                    "key": {
+                      "dataType": "string",
+                      "id": "service.name--string--resource--false",
+                      "isColumn": false,
+                      "key": "service.name",
+                      "type": "resource"
+                    },
+                    "op": "in",
+                    "value": ["omnigate-auth","omnigate-core","omnigate-ingestor","omnigate-adapter","omnigate-puller"]
+                  },
+                  {
+                    "id": "f2",
+                    "key": {
+                      "dataType": "bool",
+                      "id": "has_error--bool----true",
+                      "isColumn": true,
+                      "key": "has_error",
+                      "type": ""
+                    },
+                    "op": "=",
+                    "value": true
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service.name--string--resource--false",
+                  "isColumn": false,
+                  "key": "service.name",
+                  "type": "resource"
+                }
+              ],
+              "having": [],
+              "legend": "{{service.name}}",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "reduceTo": "avg",
+              "spaceAggregation": "sum",
+              "stepInterval": 60,
+              "timeAggregation": "rate"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "pl-errors-q",
+        "promql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "queryType": "builder"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Error Rate by Service (req/s)",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "P99 latency per service from signozspanmetrics histogram (ms)",
+      "fillSpans": false,
+      "id": "pl-avg",
+      "isStacked": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "filter": {"expression": ""},
+              "functions": [],
+              "groupBy": [],
+              "having": {"expression": ""},
+              "legend": "",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "pl-avg-q",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{service_name}}",
+            "name": "A",
+            "query": "sum by (service_name) (rate(signoz_latency_sum{service_name=~\"omnigate-.*\"}[5m])) / sum by (service_name) (rate(signoz_latency_count{service_name=~\"omnigate-.*\"}[5m]))"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Avg Latency by Service (ms)",
+      "yAxisUnit": "ms"
+    },
+    {
+      "description": "All services side by side — total spans per second regardless of kind",
+      "fillSpans": false,
+      "id": "pl-ops",
+      "isStacked": true,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "dataType": "string",
+                "id": "------false",
+                "isColumn": false,
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "count",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filters": {
+                "items": [
+                  {
+                    "id": "f1",
+                    "key": {
+                      "dataType": "string",
+                      "id": "service.name--string--resource--false",
+                      "isColumn": false,
+                      "key": "service.name",
+                      "type": "resource"
+                    },
+                    "op": "in",
+                    "value": ["omnigate-auth","omnigate-core","omnigate-ingestor","omnigate-adapter","omnigate-puller"]
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service.name--string--resource--false",
+                  "isColumn": false,
+                  "key": "service.name",
+                  "type": "resource"
+                }
+              ],
+              "having": [],
+              "legend": "{{service.name}}",
+              "limit": null,
+              "orderBy": [],
+              "queryName": "A",
+              "reduceTo": "avg",
+              "spaceAggregation": "sum",
+              "stepInterval": 60,
+              "timeAggregation": "rate"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "id": "pl-ops-q",
+        "promql": [{"disabled": false, "legend": "", "name": "A", "query": ""}],
+        "queryType": "builder"
+      },
+      "softMax": null,
+      "softMin": 0,
+      "thresholds": [],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Total Span Rate by Service (stacked)",
+      "yAxisUnit": "short"
+    }
+  ]
+}

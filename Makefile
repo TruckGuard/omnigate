@@ -2,7 +2,8 @@
         dev-up dev-up-build dev-down dev-down-soft dev-rebuild dev-restart dev-init logs \
         prod-up prod-pull prod-down prod-down-soft prod-restart prod-logs \
         build push \
-        test test-reset
+        test test-reset \
+        obs-up obs-down obs-down-hard obs-logs obs-seed-dashboards
 
 # ─── Environment ──────────────────────────────────────────────────────────────
 env-up:
@@ -37,6 +38,23 @@ test:
 
 test-reset:
 	@python test-scripts/test.py --reset
+
+# ─── Observability ────────────────────────────────────────────────────────────
+obs-up:
+	docker compose --env-file observability/.env -f observability/docker-compose.yaml up -d
+
+obs-down:
+	docker compose --env-file observability/.env -f observability/docker-compose.yaml down
+
+obs-down-hard:
+	docker compose --env-file observability/.env -f observability/docker-compose.yaml down -v
+
+obs-logs:
+	docker compose --env-file observability/.env -f observability/docker-compose.yaml logs -f
+
+obs-seed-dashboards:
+	SIGNOZ_URL=$(SIGNOZ_URL) SIGNOZ_EMAIL=$(SIGNOZ_EMAIL) SIGNOZ_PASSWORD=$(SIGNOZ_PASSWORD) \
+	  observability/seed-dashboards.sh
 
 # ─── Production deploy ────────────────────────────────────────────────────────
 prod-pull:

@@ -53,17 +53,13 @@ services:
       timeout: 5s
       retries: 3
 
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
-    restart: unless-stopped
-    command: ["--config=/etc/otel-collector-config.yaml"]
-    volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
-
   # ── Application services (pre-built GHCR images) ──────────────────────────────
   auth:
     image: ghcr.io/truckguard/omnigate-auth:latest
     restart: unless-stopped
+    networks:
+      - default
+      - omnigate-observability
     environment:
       - DATABASE_URL=postgres://${AUTH_USER}:${AUTH_PASSWORD}@db:5432/${AUTH_DB_NAME}
       - VALKEY_ADDR=valkey:6379
@@ -87,6 +83,9 @@ services:
   ingestor:
     image: ghcr.io/truckguard/omnigate-ingestor:latest
     restart: unless-stopped
+    networks:
+      - default
+      - omnigate-observability
     environment:
       - VALKEY_ADDR=valkey:6379
       - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
@@ -112,6 +111,9 @@ services:
   core:
     image: ghcr.io/truckguard/omnigate-core:latest
     restart: unless-stopped
+    networks:
+      - default
+      - omnigate-observability
     environment:
       - DATABASE_URL=postgres://${CORE_USER}:${CORE_PASSWORD}@db:5432/${CORE_DB_NAME}
       - VALKEY_ADDR=valkey:6379
@@ -138,6 +140,9 @@ services:
   adapter:
     image: ghcr.io/truckguard/omnigate-adapter:latest
     restart: unless-stopped
+    networks:
+      - default
+      - omnigate-observability
     environment:
       - WORKER_SYSTEM_KEY=${WORKER_SYSTEM_KEY}
       - CORE_URL=http://gateway/api/v1
@@ -158,6 +163,9 @@ services:
   puller:
     image: ghcr.io/truckguard/omnigate-puller:latest
     restart: unless-stopped
+    networks:
+      - default
+      - omnigate-observability
     environment:
       - INGESTOR_URL=http://gateway/ingest
       - WORKER_API_KEY=${PULLER_API_KEY}
@@ -195,6 +203,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+networks:
+  omnigate-observability:
+    name: omnigate-observability
+    driver: bridge
 
 volumes:
   postgres_data:
