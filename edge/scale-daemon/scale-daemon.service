@@ -1,0 +1,32 @@
+[Unit]
+Description=OmniGate Scale Daemon — TCP weight reader and ingestor forwarder
+Documentation=https://github.com/TruckGuard/omnigate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=omnigate
+Group=omnigate
+
+# All configuration comes from this env file.
+# Create it from config.example.yml or let install.sh generate a template.
+EnvironmentFile=/etc/omnigate/scale.env
+
+ExecStart=/usr/local/bin/scale-daemon
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/omnigate
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=scale-daemon
+
+[Install]
+WantedBy=multi-user.target
