@@ -2,6 +2,8 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,8 +70,17 @@ func (e *Event) BeforeSave(tx *gorm.DB) error {
 	if !ok {
 		return nil
 	}
-	strValue, ok := rawValue.(string)
-	if !ok || strValue == "" {
+
+	var strValue string
+	switch v := rawValue.(type) {
+	case string:
+		strValue = v
+	case float64:
+		strValue = strconv.FormatFloat(v, 'f', -1, 64)
+	default:
+		strValue = fmt.Sprintf("%v", v)
+	}
+	if strValue == "" {
 		return nil
 	}
 
