@@ -17,6 +17,6 @@ class Config:
     STORAGE_SECRET_KEY: str = os.getenv("STORAGE_SECRET_KEY", "")
     STORAGE_BUCKET: str = os.getenv("STORAGE_BUCKET", "truckguard-data")
     
-    CACHE_TTL: int = 300  # 5 minutes
+    CACHE_TTL: int = 900  # 15 minutes
 
 cfg = Config()

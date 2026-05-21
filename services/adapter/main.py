@@ -67,7 +67,7 @@ def main():
     storage = MinioStorage()
     anpr = ANPRClient()
 
-    processor = EventProcessor(core, puller, storage, anpr)
+    processor = EventProcessor(core, puller, storage, anpr, redis)
 
     # Create consumer group with retries
     while True:

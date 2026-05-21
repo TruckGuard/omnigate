@@ -7,11 +7,13 @@ from typing import Dict, Any, List, Tuple
 import xmltodict
 from jsonpath_ng import parse
 from opentelemetry import trace
+from redis import Redis
 
 from src.clients.core_client import CoreClient
 from src.clients.puller_client import PullerClient
 from src.clients.anpr_client import ANPRClient
 from src.clients.minio_client import MinioStorage
+from src.config import cfg
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +23,14 @@ class EventProcessor:
         core: CoreClient,
         puller: PullerClient,
         storage: MinioStorage,
-        anpr: ANPRClient
+        anpr: ANPRClient,
+        redis: Redis,
     ):
         self.core = core
         self.puller = puller
         self.storage = storage
         self.anpr = anpr
-        self.config_cache: Dict[str, Dict] = {}
-        self.event_type_cache: Dict[str, Dict] = {}
+        self.redis = redis
     
     def process(self, raw_event: str):
         """Process a raw event from Valkey Stream."""
@@ -119,12 +121,14 @@ class EventProcessor:
                 )
     
     def _get_config(self, source_id: str) -> Dict:
-        """Get device config with caching."""
-        if source_id not in self.config_cache:
-            config = self.core.get_device_config(source_id)
-            if config:
-                self.config_cache[source_id] = config
-        return self.config_cache.get(source_id)
+        cache_key = f"cfg:{source_id}"
+        cached = self.redis.get(cache_key)
+        if cached:
+            return json.loads(cached)
+        config = self.core.get_device_config(source_id)
+        if config:
+            self.redis.setex(cache_key, cfg.CACHE_TTL, json.dumps(config))
+        return config
     
     def _parse_payload(self, payload: str, data_type: str) -> Dict:
         """Parse payload based on data type. Returns {} for empty or unparseable input."""
