@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import logging
 import uuid
@@ -63,6 +64,31 @@ class EventProcessor:
         
         # 3. Transform data using mapping
         transformed_data = self._transform_data(parsed_data, config.get("data_mapping", {}))
+
+        # Deduplication: ignore repeated events from the same device within 5 s.
+        # Exclude image fields from the hash — base64 blobs differ per snapshot
+        # even when the underlying plate/weight is identical.
+        event_fields = config.get("event_type", {}).get("fields", {})
+        required_fields = {k for k, v in event_fields.items() if v.get("required")}
+        image_fields = set(config.get("image_fields", []))
+        dedup_data = {k: v for k, v in transformed_data.items() if k in required_fields - image_fields}
+        data_hash = hashlib.md5(
+            json.dumps(dedup_data, sort_keys=True, default=str).encode()
+        ).hexdigest()
+        redis_key = f"dedup:{source_id}:{data_hash}"
+        try:
+            is_new = self.redis.set(redis_key, "1", nx=True, ex=5)
+            if not is_new:
+                logger.info(
+                    "Duplicate event ignored",
+                    extra={"source_id": source_id, "data": dedup_data},
+                )
+                return
+        except Exception as exc:
+            logger.warning(
+                "Dedup cache unavailable, proceeding",
+                extra={"source_id": source_id, "error": str(exc)},
+            )
 
         # 3.5 Decode and upload any base64-encoded images present in the payload.
         # Fields listed in config["image_fields"] are replaced with their S3 object keys
