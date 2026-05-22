@@ -19,12 +19,26 @@ func HandleListTransactions(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
+	var startAt, endAt *time.Time
+	if s := c.Query("start_at"); s != "" {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			startAt = &t
+		}
+	}
+	if e := c.Query("end_at"); e != "" {
+		if t, err := time.Parse(time.RFC3339, e); err == nil {
+			endAt = &t
+		}
+	}
+
 	txs, total := repository.ListTransactions(repository.TransactionFilter{
-		GateID: c.Query("gate_id"),
-		Search: c.Query("search"),
-		Open:   c.Query("open") == "true",
-		Page:   page,
-		Limit:  limit,
+		GateID:  c.Query("gate_id"),
+		Search:  c.Query("search"),
+		Open:    c.Query("open") == "true",
+		Page:    page,
+		Limit:   limit,
+		StartAt: startAt,
+		EndAt:   endAt,
 	})
 
 	c.JSON(http.StatusOK, gin.H{

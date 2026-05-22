@@ -14,6 +14,7 @@
   import { api } from '$lib/api.js';
   import { fmtDate } from '$lib/utils.js';
   import type { Gate, Transaction } from '$lib/types.js';
+  import DateRangePicker from '$lib/components/DateRangePicker.svelte';
   import { Search, RefreshCw, Eye, History, X } from 'lucide-svelte';
 
   const PAGE_LIMIT = 20;
@@ -30,6 +31,8 @@
   let debouncedSearch = $state(_initialPage.url.searchParams.get('search') ?? '');
   let gateFilter      = $state(_initialPage.url.searchParams.get('gate_id') ?? '');
   let openOnly        = $state(_initialPage.url.searchParams.get('open') === 'true');
+  let startAt = $state(_initialPage.url.searchParams.get('start_at') ?? '');
+  let endAt   = $state(_initialPage.url.searchParams.get('end_at') ?? '');
   let gates           = $state<Gate[]>([]);
   let loading         = $state(false);
   let selectedId      = $state('');
@@ -98,10 +101,11 @@
     try {
       const res = await api.transactions.list({
         page, limit: PAGE_LIMIT,
-        ...(gateFilter       && { gate_id: gateFilter }),
-        ...(openOnly         && { open: 'true' }),
-        // Передаємо дебаунсоване значення — не сирий search
-        ...(debouncedSearch  && { search: debouncedSearch }),
+        ...(gateFilter      && { gate_id: gateFilter }),
+        ...(openOnly        && { open: 'true' }),
+        ...(debouncedSearch && { search: debouncedSearch }),
+        ...(startAt && { start_at: startAt }),
+        ...(endAt   && { end_at:   endAt }),
       });
       if (prevTotal >= 0 && res.total > prevTotal) toast.success('Нова транзакція розпочата');
       prevTotal = res.total;
@@ -135,6 +139,8 @@
     if (gateFilter)      params.set('gate_id', gateFilter);
     if (openOnly)        params.set('open', 'true');
     if (debouncedSearch) params.set('search', debouncedSearch);
+    if (startAt) params.set('start_at', startAt);
+    if (endAt)   params.set('end_at',   endAt);
     const qs = params.toString();
     if (window.location.search !== (qs ? `?${qs}` : '')) {
       history.replaceState(null, '', qs ? `/?${qs}` : '/');
@@ -177,6 +183,8 @@
         {/each}
       </SelectContent>
     </Select>
+
+    <DateRangePicker bind:startAt bind:endAt />
 
     <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
       <Switch bind:checked={openOnly} onCheckedChange={() => { page = 1; }} />

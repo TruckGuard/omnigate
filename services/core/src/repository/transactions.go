@@ -39,11 +39,13 @@ func GetTransactionRaw(id uuid.UUID) *models.Transaction {
 }
 
 type TransactionFilter struct {
-	GateID string
-	Search string
-	Open   bool // if true, only return currently-open transactions (Valkey key exists)
-	Page   int
-	Limit  int
+	GateID  string
+	Search  string
+	Open    bool // if true, only return currently-open transactions (Valkey key exists)
+	Page    int
+	Limit   int
+	StartAt *time.Time
+	EndAt   *time.Time
 }
 
 func ListTransactions(f TransactionFilter) ([]models.Transaction, int64) {
@@ -53,6 +55,12 @@ func ListTransactions(f TransactionFilter) ([]models.Transaction, int64) {
 	q := DB.Model(&models.Transaction{})
 	if f.GateID != "" {
 		q = q.Where("gate_id = ?", f.GateID)
+	}
+	if f.StartAt != nil {
+		q = q.Where("created_at >= ?", f.StartAt)
+	}
+	if f.EndAt != nil {
+		q = q.Where("created_at <= ?", f.EndAt)
 	}
 	if f.Search != "" {
 		// Шукаємо одночасно:

@@ -43,6 +43,8 @@ export interface TxQuery {
   gate_id?: string;
   open?: string;
   search?: string;
+  start_at?: string;
+  end_at?: string;
 }
 
 export const api = {
@@ -95,11 +97,13 @@ export const api = {
   transactions: {
     list: (q: TxQuery = {}) => {
       const p = new URLSearchParams();
-      if (q.page)    p.set('page', String(q.page));
-      if (q.limit)   p.set('limit', String(q.limit));
-      if (q.gate_id) p.set('gate_id', q.gate_id);
-      if (q.open)    p.set('open', q.open);
-      if (q.search)  p.set('search', q.search);
+      if (q.page)     p.set('page', String(q.page));
+      if (q.limit)    p.set('limit', String(q.limit));
+      if (q.gate_id)  p.set('gate_id', q.gate_id);
+      if (q.open)     p.set('open', q.open);
+      if (q.search)   p.set('search', q.search);
+      if (q.start_at) p.set('start_at', q.start_at);
+      if (q.end_at)   p.set('end_at', q.end_at);
       return req<TransactionListResponse>(`/api/v1/transactions?${p}`);
     },
     get: (id: string) => req<TransactionDetail>(`/api/v1/transactions/${id}`),
