@@ -14,16 +14,21 @@
   import { fmtDate, fmtTime, fmtDateTime } from "$lib/utils.js";
   import type { Transaction, DeviceConfig, APIKey } from "$lib/types.js";
   import { authStore } from "$lib/stores/auth.svelte.js";
-  import { ChevronLeft, Camera, X, ExternalLink, StopCircle } from "lucide-svelte";
+  import { ChevronLeft, ChevronRight, Camera, X, ExternalLink, StopCircle } from "lucide-svelte";
 
   const txId = $derived($page.params.id ?? "");
 
   let tx = $state<Transaction | null>(null);
+  let prevId = $state<string | null>(null);
+  let nextId = $state<string | null>(null);
   let loading = $state(true);
   let noteText = $state("");
   let savingNote = $state(false);
   let closing = $state(false);
-  let openPhoto = $state<{ key: string; label: string } | null>(null);
+
+  // Gallery: index into allImages; openPhoto is derived
+  let galleryIdx = $state<number | null>(null);
+  const openPhoto = $derived(galleryIdx !== null ? (allImages[galleryIdx] ?? null) : null);
 
   // Lightbox zoom/pan
   let imgScale = $state(1);
@@ -32,10 +37,32 @@
   let dragging = $state(false);
   let dragStart = $state({ x: 0, y: 0, ox: 0, oy: 0 });
 
-  $effect(() => { if (openPhoto) { imgScale = 1; imgX = 0; imgY = 0; } });
+  // Reset zoom whenever the active photo changes
+  $effect(() => { galleryIdx; imgScale = 1; imgX = 0; imgY = 0; });
 
-  function closePhoto() { openPhoto = null; imgScale = 1; imgX = 0; imgY = 0; }
-  function handleKeydown(e: KeyboardEvent) { if (openPhoto && e.key === 'Escape') closePhoto(); }
+  function openImage(key: string) {
+    const idx = allImages.findIndex(img => img.key === key);
+    if (idx !== -1) galleryIdx = idx;
+  }
+  function closePhoto() { galleryIdx = null; imgScale = 1; imgX = 0; imgY = 0; }
+  function prevImage() {
+    if (!allImages.length) return;
+    galleryIdx = galleryIdx === null ? 0 : (galleryIdx - 1 + allImages.length) % allImages.length;
+  }
+  function nextImage() {
+    if (!allImages.length) return;
+    galleryIdx = galleryIdx === null ? 0 : (galleryIdx + 1) % allImages.length;
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (galleryIdx !== null) {
+      if (e.key === 'Escape') { closePhoto(); return; }
+      if (e.key === 'ArrowLeft') { prevImage(); return; }
+      if (e.key === 'ArrowRight') { nextImage(); return; }
+    }
+    if (e.shiftKey && e.key === 'ArrowLeft' && prevId) goto(`/transactions/${prevId}`);
+    if (e.shiftKey && e.key === 'ArrowRight' && nextId) goto(`/transactions/${nextId}`);
+  }
 
   let openingOriginal = $state(false);
   async function openOriginal() {
@@ -114,13 +141,20 @@
     const id = txId;
     (async () => {
       loading = true;
+      galleryIdx = null;
       try {
         const res = await api.transactions.get(id);
-        tx = res;
-        noteText = res.note ?? "";
-      } catch {
-        toast.error("Транзакцію не знайдено");
-        goto("/");
+        // Handle both new envelope format and legacy bare Transaction
+        const txData = res.transaction ?? (res as unknown as Transaction);
+        tx = txData;
+        prevId = res.prev_id ?? null;
+        nextId = res.next_id ?? null;
+        noteText = txData.note ?? "";
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const is404 = msg.startsWith('404');
+        toast.error(is404 ? "Транзакцію не знайдено" : `Помилка завантаження: ${msg}`);
+        if (is404) goto("/");
       } finally {
         loading = false;
       }
@@ -173,6 +207,38 @@
     ),
   );
 
+  // Required fields grouped by event — used for the summary sidebar card
+  const summaryGroups = $derived.by(() => {
+    type Group = {
+      sourceName: string;
+      sourceLink: string | null;
+      eventName: string;
+      eventCode: string;
+      fields: { label: string; value: string }[];
+    };
+    const groups: Group[] = [];
+    for (const ev of sortedEvents) {
+      const evFields = ev.event_type?.fields;
+      if (!evFields) continue;
+      const required: { label: string; value: string }[] = [];
+      for (const [key, field] of Object.entries(evFields)) {
+        if (field.required && ev.data[key] !== undefined && ev.data[key] !== null && ev.data[key] !== '') {
+          required.push({ label: field.name || key, value: String(ev.data[key]) });
+        }
+      }
+      if (!required.length) continue;
+      const dev = deviceFor(ev.source_id);
+      groups.push({
+        sourceName: dev.name,
+        sourceLink: dev.config_id ? `/settings/devices/${dev.config_id}` : null,
+        eventName: ev.event_type?.name ?? ev.type_code,
+        eventCode: ev.event_type?.code ?? ev.type_code,
+        fields: required,
+      });
+    }
+    return groups;
+  });
+
   function tryFormatJson(s: string): string {
     try { return JSON.stringify(JSON.parse(s), null, 2); }
     catch { return s; }
@@ -198,7 +264,7 @@
 
   async function loadRaw(eventId: string) {
     if (eventId in rawCache) return;
-    rawCache[eventId] = null; // mark as loading
+    rawCache[eventId] = null;
     try {
       rawCache[eventId] = await api.events.raw(eventId);
     } catch {
@@ -232,20 +298,44 @@
         <Badge variant="secondary">Закрита</Badge>
       {/if}
       <GateBadge gateId={tx.gate_id} dot />
-      {#if tx.is_open}
-        <PermGuard permission="transactions:close">
+
+      <!-- Right-aligned controls: close + navigation -->
+      <div class="ml-auto flex items-center gap-2 flex-wrap">
+        {#if tx.is_open}
+          <PermGuard permission="transactions:close">
+            <Button
+              variant="outline"
+              size="sm"
+              class="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+              onclick={closeTransaction}
+              disabled={closing}
+            >
+              <StopCircle size={14} />
+              {closing ? 'Закриття…' : 'Закрити транзакцію'}
+            </Button>
+          </PermGuard>
+        {/if}
+        <div class="flex items-center gap-1">
           <Button
             variant="outline"
             size="sm"
-            class="ml-auto text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
-            onclick={closeTransaction}
-            disabled={closing}
+            href={`/transactions/${prevId}`}
+            disabled={!prevId}
+            title="Попередня (Shift+←)"
           >
-            <StopCircle size={14} />
-            {closing ? 'Закриття…' : 'Закрити транзакцію'}
+            <ChevronLeft size={14} /> Попередня
           </Button>
-        </PermGuard>
-      {/if}
+          <Button
+            variant="outline"
+            size="sm"
+            href={`/transactions/${nextId}`}
+            disabled={!nextId}
+            title="Наступна (Shift+→)"
+          >
+            Наступна <ChevronRight size={14} />
+          </Button>
+        </div>
+      </div>
     </div>
 
     <!-- Transaction meta — compact horizontal strip -->
@@ -268,11 +358,11 @@
       </span>
     </div>
 
-    <!-- Body: flex so photo sidebar only occupies space when photos exist -->
-    <div class="flex flex-col lg:flex-row gap-6 items-start">
+    <!-- Body: two-column grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-      <!-- ── LEFT: Timeline ── -->
-      <div class="flex-1 min-w-0">
+      <!-- ── LEFT: Timeline (8 cols) ── -->
+      <div class="lg:col-span-8 min-w-0">
         <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
           Хронологія · {sortedEvents.length > 0 ? 'найновіші зверху' : ''}
         </h2>
@@ -294,7 +384,7 @@
 
                 <!-- Dot + vertical line -->
                 <div class="flex flex-col items-center w-4 shrink-0">
-                  <div class="mt-[13px] w-3 h-3 rounded-full border-2 border-primary bg-background shrink-0 z-10"></div>
+                  <div class="mt-[13px] w-3 h-3 rounded-full border-2 border-primary bg-background shrink-0"></div>
                   {#if i < sortedEvents.length - 1}
                     <div class="w-px flex-1 bg-border mt-1 min-h-[8px]"></div>
                   {/if}
@@ -348,10 +438,7 @@
                           {#each ev.image_keys as key (key)}
                             <button
                               type="button"
-                              onclick={() => (openPhoto = {
-                                key,
-                                label: `${ev.source_id} · ${fmtTime(ev.created_at)}`,
-                              })}
+                              onclick={() => openImage(key)}
                               class="h-36 sm:h-52 aspect-[4/3] shrink-0 rounded-md overflow-hidden border border-border bg-muted snap-start hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                             >
                               <AuthImg
@@ -403,33 +490,75 @@
         </div>
       </div>
 
-      <!-- ── RIGHT: Photo gallery — only rendered when photos exist ── -->
-      {#if allImages.length}
-        <div class="w-full lg:w-[300px] shrink-0 lg:sticky lg:top-[52px] space-y-3">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Фотодокази</h2>
-            <span class="text-xs text-muted-foreground">{allImages.length} знімків</span>
+      <!-- ── RIGHT: Sticky sidebar (4 cols) ── -->
+      <div class="lg:col-span-4 space-y-4 lg:sticky lg:top-6">
+
+        <!-- Summary card: required fields grouped by event -->
+        {#if summaryGroups.length}
+          <div class="space-y-2">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Резюме</h2>
+            <Card>
+              <CardContent class="p-0 divide-y divide-border">
+                {#each summaryGroups as g}
+                  <div class="py-4 px-4 first:pt-0 last:pb-0 space-y-1">
+                    <!-- Header: source link · event code -->
+                    <div class="flex items-center gap-1 text-[11px] text-muted-foreground flex-wrap">
+                      {#if g.sourceLink}
+                        <a
+                          href={g.sourceLink}
+                          class="font-medium hover:text-primary transition-colors inline-flex items-center gap-0.5"
+                        >
+                          {g.sourceName}<ExternalLink size={9} class="opacity-60 shrink-0" />
+                        </a>
+                      {:else}
+                        <span class="font-medium">{g.sourceName}</span>
+                      {/if}
+                      <span class="text-muted-foreground/40">·</span>
+                      <span class="font-mono">{g.eventCode}</span>
+                    </div>
+                    <!-- Fields -->
+                    {#each g.fields as f}
+                      <div class="flex gap-1.5 text-[12px] leading-5">
+                        <span class="text-muted-foreground shrink-0">{f.label}:</span>
+                        <span class="font-mono font-medium break-all">{f.value}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/each}
+              </CardContent>
+            </Card>
           </div>
-          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2">
-            {#each allImages as img}
-              <button
-                onclick={() => (openPhoto = img)}
-                class="aspect-[4/3] w-full bg-muted rounded-md border border-border overflow-hidden relative hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-              >
-                <AuthImg
-                  src={api.imageUrl(img.key)}
-                  alt={img.label}
-                  class="absolute inset-0 w-full h-full object-cover"
-                />
-                <div class="absolute inset-0 flex items-end p-1.5 pointer-events-none bg-gradient-to-t from-black/40 to-transparent">
-                  <span class="text-[10px] text-white/90 font-mono leading-tight">{img.label}</span>
-                </div>
-                <Camera size={13} class="absolute top-1.5 right-1.5 text-white/60 drop-shadow" />
-              </button>
-            {/each}
+        {/if}
+
+        <!-- Photo gallery sidebar -->
+        {#if allImages.length}
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Фотодокази</h2>
+              <span class="text-xs text-muted-foreground">{allImages.length} знімків</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2">
+              {#each allImages as img, idx}
+                <button
+                  onclick={() => (galleryIdx = idx)}
+                  class="aspect-[4/3] w-full bg-muted rounded-md border border-border overflow-hidden relative hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                  <AuthImg
+                    src={api.imageUrl(img.key)}
+                    alt={img.label}
+                    class="absolute inset-0 w-full h-full object-cover"
+                  />
+                  <div class="absolute inset-0 flex items-end p-1.5 pointer-events-none bg-gradient-to-t from-black/40 to-transparent">
+                    <span class="text-[10px] text-white/90 font-mono leading-tight">{img.label}</span>
+                  </div>
+                  <Camera size={13} class="absolute top-1.5 right-1.5 text-white/60 drop-shadow" />
+                </button>
+              {/each}
+            </div>
           </div>
-        </div>
-      {/if}
+        {/if}
+
+      </div>
 
     </div>
   </main>
@@ -437,6 +566,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
+<!-- Lightbox / Photo gallery modal -->
 {#if openPhoto}
   <div class="fixed inset-0 z-50 bg-black/95 flex flex-col select-none" role="dialog" aria-modal="true">
 
@@ -445,6 +575,9 @@
       <span class="font-mono text-xs text-white/50">{openPhoto.label}</span>
       <div class="flex items-center gap-2 text-white/50">
         <span class="text-[11px] tabular-nums">{Math.round(imgScale * 100)}%</span>
+        {#if allImages.length > 1}
+          <span class="text-[11px] tabular-nums">Фото {(galleryIdx ?? 0) + 1} з {allImages.length}</span>
+        {/if}
         <button
           onclick={openOriginal}
           disabled={openingOriginal}
@@ -463,7 +596,6 @@
     <div
       use:lightboxInteract
       role="presentation"
-      onkeydown={handleKeydown}
       class="flex-1 overflow-hidden flex items-center justify-center {imgScale > 1 ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'}"
       onmousedown={onMouseDown}
       onmousemove={onMouseMove}
@@ -484,11 +616,30 @@
       </div>
     </div>
 
+    <!-- Prev/Next arrows — only when multiple photos -->
+    {#if allImages.length > 1}
+      <button
+        onclick={prevImage}
+        class="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors"
+        aria-label="Попереднє фото"
+      >
+        <ChevronLeft size={22} />
+      </button>
+      <button
+        onclick={nextImage}
+        class="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors"
+        aria-label="Наступне фото"
+      >
+        <ChevronRight size={22} />
+      </button>
+    {/if}
+
     <!-- Hints -->
     <div class="shrink-0 flex items-center justify-center gap-5 py-2 text-[10px] text-white/20">
       <span>scroll / pinch — zoom</span>
       <span>двічі — 2.5×</span>
       <span>тягни — зсув</span>
+      {#if allImages.length > 1}<span>← → — навігація</span>{/if}
       <span>ESC — закрити</span>
     </div>
 

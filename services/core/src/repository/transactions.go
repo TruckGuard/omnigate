@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/omnigate/services/core/src/models"
@@ -121,6 +122,44 @@ func UpdateTransaction(tx *models.Transaction) error {
 
 func DeleteTransaction(id uuid.UUID) error {
 	return DB.Delete(&models.Transaction{}, id).Error
+}
+
+type TransactionNeighbours struct {
+	PrevID *uuid.UUID
+	NextID *uuid.UUID
+}
+
+// GetTransactionNeighbours returns the IDs of adjacent transactions by created_at.
+func GetTransactionNeighbours(id uuid.UUID, createdAt time.Time) TransactionNeighbours {
+	result := TransactionNeighbours{}
+
+	var prev struct {
+		ID uuid.UUID `gorm:"column:id"`
+	}
+	if err := DB.Model(&models.Transaction{}).
+		Select("id").
+		Where("created_at < ? AND id != ?", createdAt, id).
+		Order("created_at DESC").
+		Limit(1).
+		Scan(&prev).Error; err == nil && prev.ID != uuid.Nil {
+		pid := prev.ID
+		result.PrevID = &pid
+	}
+
+	var next struct {
+		ID uuid.UUID `gorm:"column:id"`
+	}
+	if err := DB.Model(&models.Transaction{}).
+		Select("id").
+		Where("created_at > ? AND id != ?", createdAt, id).
+		Order("created_at ASC").
+		Limit(1).
+		Scan(&next).Error; err == nil && next.ID != uuid.Nil {
+		nid := next.ID
+		result.NextID = &nid
+	}
+
+	return result
 }
 
 // CountEventsForTransaction returns the number of events attached to a transaction.

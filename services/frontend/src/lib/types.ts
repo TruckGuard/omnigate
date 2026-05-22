@@ -70,6 +70,12 @@ export interface Transaction {
   updated_at: string;
 }
 
+export interface TransactionDetail {
+  transaction: Transaction;
+  prev_id: string | null;
+  next_id: string | null;
+}
+
 export interface VehicleHistoryResponse {
   plate: string;
   data: Transaction[];

@@ -49,7 +49,21 @@ func HandleGetTransaction(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, tx)
+	neighbours := repository.GetTransactionNeighbours(txID, tx.CreatedAt)
+
+	resp := gin.H{
+		"transaction": tx,
+		"prev_id":     nil,
+		"next_id":     nil,
+	}
+	if neighbours.PrevID != nil {
+		resp["prev_id"] = neighbours.PrevID.String()
+	}
+	if neighbours.NextID != nil {
+		resp["next_id"] = neighbours.NextID.String()
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 func HandleCreateTransaction(c *gin.Context) {

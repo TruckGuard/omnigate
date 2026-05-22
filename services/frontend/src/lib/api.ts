@@ -11,6 +11,7 @@ import type {
   Permission,
   Session,
   Transaction,
+  TransactionDetail,
   TransactionListResponse,
   Trigger,
   UserProfile,
@@ -101,7 +102,7 @@ export const api = {
       if (q.search)  p.set('search', q.search);
       return req<TransactionListResponse>(`/api/v1/transactions?${p}`);
     },
-    get: (id: string) => req<Transaction>(`/api/v1/transactions/${id}`),
+    get: (id: string) => req<TransactionDetail>(`/api/v1/transactions/${id}`),
     update: (id: string, data: { note?: string }) =>
       req<Transaction>(`/api/v1/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     close: (id: string) => req<void>(`/api/v1/transactions/${id}/close`, { method: 'POST' }),
