@@ -37,6 +37,13 @@ type DeviceConfig struct {
 	// The Adapter decodes them, uploads to S3, and replaces the value with the object key.
 	ImageFields datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"image_fields"`
 
+	// AwaitSourceIDs is the list of source_ids this device expects events from.
+	// After this device's event is processed, a tx_await key is registered for each entry
+	// so that the awaited device's next event is pulled into the same transaction.
+	AwaitSourceIDs datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"await_source_ids"`
+	// AwaitTTLSeconds is the expiry for each tx_await key. 0 falls back to the gate TTL.
+	AwaitTTLSeconds int `gorm:"default:0" json:"await_ttl_seconds"`
+
 	Enabled   bool      `gorm:"default:true" json:"enabled"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

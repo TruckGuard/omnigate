@@ -143,7 +143,7 @@ export const api = {
     get: (sourceId: string) => req<DeviceConfig>(`/api/v1/configs/devices/${sourceId}`),
     create: (d: Omit<DeviceConfig, 'id' | 'created_at' | 'updated_at' | 'enabled' | 'event_type'> & { triggers?: Trigger[] }) =>
       req<DeviceConfig>('/api/v1/configs/devices', { method: 'POST', body: JSON.stringify(d) }),
-    update: (id: string, d: Partial<Pick<DeviceConfig, 'event_type_id' | 'gate_id' | 'data_type' | 'data_mapping' | 'trigger_url' | 'trigger_enabled' | 'triggers' | 'image_fields'>>) =>
+    update: (id: string, d: Partial<Pick<DeviceConfig, 'event_type_id' | 'gate_id' | 'data_type' | 'data_mapping' | 'trigger_url' | 'trigger_enabled' | 'triggers' | 'image_fields' | 'await_source_ids' | 'await_ttl_seconds'>>) =>
       req<DeviceConfig>(`/api/v1/configs/devices/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
     delete: (id: string) => req<void>(`/api/v1/configs/devices/${id}`, { method: 'DELETE' }),
     trigger: (id: string) => req<{ message: string }>(`/api/v1/configs/devices/${id}/trigger`, { method: 'POST' }),

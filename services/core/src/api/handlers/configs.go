@@ -86,15 +86,17 @@ func HandleGetDeviceConfig(c *gin.Context) {
 
 func HandleCreateDeviceConfig(c *gin.Context) {
 	var req struct {
-		SourceID       string         `json:"source_id" binding:"required"`
-		EventTypeID    uuid.UUID      `json:"event_type_id" binding:"required"`
-		GateID         string         `json:"gate_id" binding:"required"`
-		DataMapping    datatypes.JSON `json:"data_mapping" binding:"required"`
-		DataType       string         `json:"data_type" binding:"required"`
-		TriggerURL     *string        `json:"trigger_url"`
-		Triggers       datatypes.JSON `json:"triggers"`
-		TriggerEnabled bool           `json:"trigger_enabled"`
-		ImageFields    datatypes.JSON `json:"image_fields"`
+		SourceID        string         `json:"source_id" binding:"required"`
+		EventTypeID     uuid.UUID      `json:"event_type_id" binding:"required"`
+		GateID          string         `json:"gate_id" binding:"required"`
+		DataMapping     datatypes.JSON `json:"data_mapping" binding:"required"`
+		DataType        string         `json:"data_type" binding:"required"`
+		TriggerURL      *string        `json:"trigger_url"`
+		Triggers        datatypes.JSON `json:"triggers"`
+		TriggerEnabled  bool           `json:"trigger_enabled"`
+		ImageFields     datatypes.JSON `json:"image_fields"`
+		AwaitSourceIDs  datatypes.JSON `json:"await_source_ids"`
+		AwaitTTLSeconds int            `json:"await_ttl_seconds"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -110,18 +112,24 @@ func HandleCreateDeviceConfig(c *gin.Context) {
 	if imageFields == nil {
 		imageFields = datatypes.JSON([]byte("[]"))
 	}
+	awaitSourceIDs := req.AwaitSourceIDs
+	if awaitSourceIDs == nil {
+		awaitSourceIDs = datatypes.JSON([]byte("[]"))
+	}
 
 	config := &models.DeviceConfig{
-		SourceID:       req.SourceID,
-		EventTypeID:    req.EventTypeID,
-		GateID:         req.GateID,
-		DataMapping:    req.DataMapping,
-		DataType:       req.DataType,
-		TriggerURL:     req.TriggerURL,
-		Triggers:       triggers,
-		TriggerEnabled: req.TriggerEnabled,
-		ImageFields:    imageFields,
-		Enabled:        true,
+		SourceID:        req.SourceID,
+		EventTypeID:     req.EventTypeID,
+		GateID:          req.GateID,
+		DataMapping:     req.DataMapping,
+		DataType:        req.DataType,
+		TriggerURL:      req.TriggerURL,
+		Triggers:        triggers,
+		TriggerEnabled:  req.TriggerEnabled,
+		ImageFields:     imageFields,
+		AwaitSourceIDs:  awaitSourceIDs,
+		AwaitTTLSeconds: req.AwaitTTLSeconds,
+		Enabled:         true,
 	}
 
 	savedConfig := repository.CreateDeviceConfig(config)
@@ -143,14 +151,16 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 	}
 
 	var req struct {
-		EventTypeID    *uuid.UUID       `json:"event_type_id"`
-		GateID         *string          `json:"gate_id"`
-		DataType       *string          `json:"data_type"`
-		DataMapping    *json.RawMessage `json:"data_mapping"`
-		TriggerURL     *string          `json:"trigger_url"`
-		TriggerEnabled *bool            `json:"trigger_enabled"`
-		Triggers       *json.RawMessage `json:"triggers"`
-		ImageFields    *json.RawMessage `json:"image_fields"`
+		EventTypeID     *uuid.UUID       `json:"event_type_id"`
+		GateID          *string          `json:"gate_id"`
+		DataType        *string          `json:"data_type"`
+		DataMapping     *json.RawMessage `json:"data_mapping"`
+		TriggerURL      *string          `json:"trigger_url"`
+		TriggerEnabled  *bool            `json:"trigger_enabled"`
+		Triggers        *json.RawMessage `json:"triggers"`
+		ImageFields     *json.RawMessage `json:"image_fields"`
+		AwaitSourceIDs  *json.RawMessage `json:"await_source_ids"`
+		AwaitTTLSeconds *int             `json:"await_ttl_seconds"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -180,6 +190,12 @@ func HandleUpdateDeviceConfig(c *gin.Context) {
 	}
 	if req.ImageFields != nil {
 		config.ImageFields = datatypes.JSON(*req.ImageFields)
+	}
+	if req.AwaitSourceIDs != nil {
+		config.AwaitSourceIDs = datatypes.JSON(*req.AwaitSourceIDs)
+	}
+	if req.AwaitTTLSeconds != nil {
+		config.AwaitTTLSeconds = *req.AwaitTTLSeconds
 	}
 
 	if err := repository.UpdateDeviceConfig(&config); err != nil {

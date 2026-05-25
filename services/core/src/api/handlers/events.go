@@ -78,8 +78,9 @@ func HandleCreateEvent(c *gin.Context) {
 	}
 
 	// Determine transaction — delegates all routing logic (Puller validation,
-	// max-events enforcement, TTL refresh) to the matchmaker.
-	transactionID := logic.ResolveTransaction(c.Request.Context(), req.GateID, req.TransactionID)
+	// max-events enforcement, await correlation, TTL refresh) to the matchmaker.
+	transactionID := logic.ResolveTransaction(c.Request.Context(), req.GateID, req.SourceID, req.TransactionID)
+	logic.RegisterAwaits(c.Request.Context(), req.GateID, req.SourceID, transactionID)
 
 	span.SetAttributes(attribute.String("truckguard.transaction_id", transactionID.String()))
 

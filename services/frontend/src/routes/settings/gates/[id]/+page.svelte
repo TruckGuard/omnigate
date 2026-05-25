@@ -24,7 +24,7 @@
   let loading  = $state(true);
   let saving   = $state(false);
 
-  let ttlMinutes    = $state(30);
+  let ttlSeconds    = $state(1800);
   let autoClose     = $state(true);
   let maxEvents     = $state(100);
 
@@ -37,7 +37,7 @@
         gate = g;
         stats = s;
         const cfg = g.settings ?? {};
-        ttlMinutes = cfg.transaction_ttl_minutes ?? 30;
+        ttlSeconds = cfg.transaction_ttl_seconds ?? 1800;
         autoClose  = cfg.auto_close_transactions ?? true;
         maxEvents  = cfg.max_events_per_transaction ?? 100;
       } catch {
@@ -54,7 +54,7 @@
     saving = true;
     try {
       const settings: GateSettings = {
-        transaction_ttl_minutes: ttlMinutes,
+        transaction_ttl_seconds: ttlSeconds,
         auto_close_transactions: autoClose,
         max_events_per_transaction: maxEvents,
       };
@@ -126,8 +126,8 @@
           <CardTitle class="text-base">Налаштування транзакцій</CardTitle>
         </CardHeader>
         <CardContent class="space-y-4">
-          <Field label="TTL транзакції (хвилини)" hint="Автоматично закривати відкриті транзакції після стількох хвилин неактивності.">
-            <Input type="number" bind:value={ttlMinutes} min={1} max={1440} />
+          <Field label="TTL транзакції (секунди)" hint="Автоматично закривати відкриті транзакції після стількох секунд неактивності.">
+            <Input type="number" bind:value={ttlSeconds} min={1} max={86400} />
           </Field>
           <div class="flex items-center justify-between">
             <div>

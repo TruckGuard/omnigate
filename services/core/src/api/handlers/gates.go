@@ -31,23 +31,28 @@ func HandleGetGate(c *gin.Context) {
 
 func HandleCreateGate(c *gin.Context) {
 	var req struct {
-		GateID      string `json:"gate_id" binding:"required"`
-		Name        string `json:"name" binding:"required"`
-		Location    string `json:"location"`
-		Description string `json:"description"`
+		GateID      string           `json:"gate_id" binding:"required"`
+		Name        string           `json:"name" binding:"required"`
+		Location    string           `json:"location"`
+		Description string           `json:"description"`
+		Settings    *json.RawMessage `json:"settings"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	gate := repository.CreateGate(&models.Gate{
+	g := &models.Gate{
 		GateID:      req.GateID,
 		Name:        req.Name,
 		Location:    req.Location,
 		Description: req.Description,
 		Status:      "active",
-	})
+	}
+	if req.Settings != nil {
+		g.Settings = datatypes.JSON(*req.Settings)
+	}
+	gate := repository.CreateGate(g)
 	c.JSON(http.StatusCreated, gate)
 }
 
@@ -64,10 +69,11 @@ func HandleUpdateGate(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string `json:"name"`
-		Location    string `json:"location"`
-		Description string `json:"description"`
-		Status      string `json:"status"`
+		Name        string           `json:"name"`
+		Location    string           `json:"location"`
+		Description string           `json:"description"`
+		Status      string           `json:"status"`
+		Settings    *json.RawMessage `json:"settings"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -85,6 +91,9 @@ func HandleUpdateGate(c *gin.Context) {
 	}
 	if req.Status != "" {
 		gate.Status = req.Status
+	}
+	if req.Settings != nil {
+		gate.Settings = datatypes.JSON(*req.Settings)
 	}
 
 	if err := repository.UpdateGate(gate); err != nil {

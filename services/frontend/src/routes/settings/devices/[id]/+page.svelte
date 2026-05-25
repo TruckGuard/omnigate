@@ -49,6 +49,9 @@
   let triggers       = $state<Trigger[]>([]);
   // Fields containing base64-encoded images; Adapter decodes and uploads to S3
   let imageFields    = $state<string[]>([]);
+  // Await device correlation: source_ids whose next event should join this device's transaction
+  let awaitSourceIDs  = $state<string[]>([]);
+  let awaitTTLSeconds = $state(0);
 
   let latestEvent = $state<Event | null>(null);
 
@@ -101,10 +104,12 @@
           eventTypeId    = cfg.event_type_id;
           dataType       = cfg.data_type;
           mappingObj     = cfg.data_mapping ?? {};
-          triggerUrl     = cfg.trigger_url ?? '';
-          triggerEnabled = cfg.trigger_enabled;
-          triggers       = cfg.triggers ?? [];
-          imageFields    = cfg.image_fields ?? [];
+          triggerUrl      = cfg.trigger_url ?? '';
+          triggerEnabled  = cfg.trigger_enabled;
+          triggers        = cfg.triggers ?? [];
+          imageFields     = cfg.image_fields ?? [];
+          awaitSourceIDs  = cfg.await_source_ids  ?? [];
+          awaitTTLSeconds = cfg.await_ttl_seconds ?? 0;
           api.events.latestForSource(cfg.source_id)
             .then(e => { latestEvent = e; })
             .catch(() => {});
@@ -128,6 +133,18 @@
 
   function setTriggerSourceId(i: number, value: string) {
     triggers = triggers.map((t, idx) => idx === i ? { source_id: value } : t);
+  }
+
+  function addAwait() {
+    awaitSourceIDs = [...awaitSourceIDs, ''];
+  }
+
+  function removeAwait(i: number) {
+    awaitSourceIDs = awaitSourceIDs.filter((_, idx) => idx !== i);
+  }
+
+  function setAwaitId(i: number, v: string) {
+    awaitSourceIDs = awaitSourceIDs.map((id, idx) => idx === i ? v : id);
   }
 
   async function createNewKey() {
@@ -173,6 +190,7 @@
       ? triggers.filter(t => t.source_id.trim() !== '')
       : [];
     try {
+      const cleanAwaitSourceIDs = awaitSourceIDs.filter(id => id.trim() !== '');
       if (isNew) {
         await api.configs.create({
           source_id: sourceId, gate_id: gateId,
@@ -182,6 +200,8 @@
           trigger_enabled: triggerEnabled,
           triggers: cleanTriggers,
           image_fields: imageFields,
+          await_source_ids: cleanAwaitSourceIDs,
+          await_ttl_seconds: awaitTTLSeconds,
         });
         toast.success('Пристрій створено');
       } else {
@@ -192,6 +212,8 @@
           trigger_enabled: triggerEnabled,
           triggers: cleanTriggers,
           image_fields: imageFields,
+          await_source_ids: cleanAwaitSourceIDs,
+          await_ttl_seconds: awaitTTLSeconds,
         });
         toast.success('Пристрій збережено');
       }
@@ -533,6 +555,64 @@
           </div>
         </div>
 
+      </CardContent>
+    </Card>
+
+    <!-- Await device correlation -->
+    <Card>
+      <CardHeader>
+        <div class="flex items-baseline justify-between">
+          <CardTitle>Очікування пристроїв</CardTitle>
+          <span class="text-sm text-muted-foreground">Кореляція подій між пристроями</span>
+        </div>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <p class="text-xs text-muted-foreground">
+          Після обробки події цього пристрою Core зарезервує транзакцію для кожного
+          очікуваного пристрою. Коли очікуваний пристрій надішле подію, вона буде
+          автоматично приєднана до тієї ж транзакції.
+        </p>
+
+        <Field label="Час очікування (секунди)" hint="Скільки секунд зберігати резервування. 0 — використати TTL шлагбауму.">
+          <Input type="number" min="0" bind:value={awaitTTLSeconds} placeholder="0" class="w-40" />
+        </Field>
+
+        <div class="space-y-2">
+          {#each awaitSourceIDs as awaitId, i (i)}
+            <div class="flex items-center gap-2">
+              <div class="flex-1">
+                <Select type="single" value={awaitId} onValueChange={v => setAwaitId(i, v)}>
+                  <SelectTrigger>
+                    {#if awaitId}
+                      {@const c = allConfigs.find(x => x.source_id === awaitId)}
+                      {c ? `${c.source_id}${c.event_type ? ' — ' + c.event_type.code : ''}` : awaitId}
+                    {:else}
+                      Оберіть пристрій для очікування…
+                    {/if}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {#each allConfigs.filter(c => c.source_id !== sourceId) as c}
+                      <SelectItem value={c.source_id}>
+                        {c.source_id}{c.event_type ? ` — ${c.event_type.code}` : ''}
+                      </SelectItem>
+                    {/each}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onclick={() => removeAwait(i)}
+                class="text-destructive hover:text-destructive shrink-0"
+              >
+                <Trash2 size={14} />
+              </Button>
+            </div>
+          {/each}
+          <Button variant="outline" size="sm" onclick={addAwait} class="w-full gap-2 mt-1">
+            <Plus size={14} /> Додати очікуваний пристрій
+          </Button>
+        </div>
       </CardContent>
     </Card>
 

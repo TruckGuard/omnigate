@@ -1,5 +1,5 @@
 export interface GateSettings {
-  transaction_ttl_minutes?: number;
+  transaction_ttl_seconds?: number;
   auto_close_transactions?: boolean;
   max_events_per_transaction?: number;
 }
@@ -114,6 +114,10 @@ export interface DeviceConfig {
   /** List of target devices this device activates after its own event is processed. */
   triggers: Trigger[];
   trigger_enabled: boolean;
+  /** Source IDs of devices whose next event should be pulled into this device's transaction. */
+  await_source_ids: string[];
+  /** TTL in seconds for the await reservation keys (0 = use gate TTL). */
+  await_ttl_seconds: number;
   enabled: boolean;
   created_at: string;
   updated_at: string;
