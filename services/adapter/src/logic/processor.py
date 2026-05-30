@@ -39,6 +39,7 @@ class EventProcessor:
         
         source_id = event["source_id"]
         gate_id = event["gate_id"]
+        ingested_at = event.get("timestamp")
         
         logger.info(f"Processing event from {source_id} at gate {gate_id}")
         
@@ -122,6 +123,7 @@ class EventProcessor:
             raw_data_key=event.get("raw_storage_key", ""),
             image_keys=all_image_keys,
             transaction_id=event.get("transaction_id"),  # From Puller flow
+            ingested_at=ingested_at,
         )
         
         transaction_id = response.get("transaction_id")

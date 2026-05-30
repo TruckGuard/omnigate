@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -49,6 +50,7 @@ type CreateEventRequest struct {
 	RawDataKey    string         `json:"raw_data_key"`
 	ImageKeys     []string       `json:"image_keys"`
 	TransactionID *uuid.UUID     `json:"transaction_id"` // Optional, from Puller
+	IngestedAt    *time.Time     `json:"ingested_at"`
 }
 
 func HandleCreateEvent(c *gin.Context) {
@@ -95,6 +97,10 @@ func HandleCreateEvent(c *gin.Context) {
 		Data:          req.Data,
 		RawDataKey:    req.RawDataKey,
 		ImageKeys:     datatypes.JSON(imgBytes),
+	}
+
+	if req.IngestedAt != nil {
+		event.CreatedAt = *req.IngestedAt
 	}
 
 	savedEvent := repository.CreateEvent(event)

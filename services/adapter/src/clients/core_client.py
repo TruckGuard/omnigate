@@ -33,6 +33,7 @@ class CoreClient:
         raw_data_key: str,
         image_keys: list = None,
         transaction_id: Optional[str] = None,
+        ingested_at: Optional[str] = None,
     ) -> Dict:
         """Create an event in CORE service."""
         url = f"{self.base_url}/events"
@@ -48,6 +49,8 @@ class CoreClient:
 
         if transaction_id:
             payload["transaction_id"] = transaction_id
+        if ingested_at:
+            payload["ingested_at"] = ingested_at
         
         try:
             response = requests.post(url, json=payload, headers=self.headers, timeout=10)
