@@ -13,8 +13,8 @@ set -euo pipefail
 
 BINARY_DEST="/usr/local/bin/scale-daemon"
 SERVICE_DEST="/etc/systemd/system/scale-daemon.service"
-ENV_DIR="/etc/omnigate"
-ENV_FILE="${ENV_DIR}/scale.env"
+CONFIG_DIR="/etc/omnigate"
+JSON_FILE="${CONFIG_DIR}/scale-daemon.json"
 LOG_DIR="/var/log/omnigate"
 SERVICE_USER="omnigate"
 
@@ -60,35 +60,35 @@ fi
 info "Installing binary → ${BINARY_DEST}"
 install -m 755 "${BINARY}" "${BINARY_DEST}"
 
-# ── Create config directory and env file ──────────────────────────────────────
-mkdir -p "${ENV_DIR}"
+# ── Create config directory ───────────────────────────────────────────────────
+mkdir -p "${CONFIG_DIR}"
 
-if [[ -f "${ENV_FILE}" ]]; then
-  warn "${ENV_FILE} already exists — skipping (edit manually to update)"
+# ── Create JSON config file ───────────────────────────────────────────────────
+if [[ -f "${JSON_FILE}" ]]; then
+  warn "${JSON_FILE} already exists — skipping (edit manually to update)"
 else
-  info "Creating default env file → ${ENV_FILE}"
-  cat > "${ENV_FILE}" <<'EOF'
-# OmniGate Scale Daemon — environment configuration
-# Edit this file then run: sudo systemctl restart scale-daemon
-
-SCALE_HOST=192.168.1.100
-SCALE_PORT=5001
-
-INGESTOR_URL=http://omnigate.example.com:8090/ingest/event
-DEVICE_ID=scale-gate-01
-API_KEY=
-
-# Milliseconds the weight must be stable before sending (default: 2000)
-# DEBOUNCE_MS=2000
-
-# Ignore readings below this weight in kg (default: 0 = report all)
-# MIN_WEIGHT_KG=0
-
-# OTLP HTTP collector for logs and traces (default: localhost:4318)
-# OTEL_ENDPOINT=localhost:4318
+  # Use bundled example if present, otherwise write a minimal default.
+  if [[ -f "${SCRIPT_DIR}/config.example.json" ]]; then
+    info "Installing config → ${JSON_FILE} (from config.example.json)"
+    install -m 640 "${SCRIPT_DIR}/config.example.json" "${JSON_FILE}"
+  else
+    info "Creating default config → ${JSON_FILE}"
+    cat > "${JSON_FILE}" <<'EOF'
+{
+  "scale_host": "192.168.1.100",
+  "scale_port": "5001",
+  "ingestor_url": "http://omnigate.example.com:8090/ingest/event",
+  "device_id": "scale-gate-01",
+  "debounce_ms": 5000,
+  "min_weight_kg": 500,
+  "reconnect_sec": 5,
+  "log_level": "info",
+  "http_timeout_sec": 10
+}
 EOF
-  chmod 640 "${ENV_FILE}"
-  chown root:"${SERVICE_USER}" "${ENV_FILE}"
+    chmod 640 "${JSON_FILE}"
+  fi
+  chown root:"${SERVICE_USER}" "${JSON_FILE}"
 fi
 
 # ── Create log directory ──────────────────────────────────────────────────────
@@ -108,6 +108,6 @@ info "scale-daemon installed and started successfully."
 echo ""
 echo "  Status : sudo systemctl status scale-daemon"
 echo "  Logs   : sudo journalctl -u scale-daemon -f"
-echo "  Config : sudo nano ${ENV_FILE}"
+echo "  Config : sudo nano ${JSON_FILE}"
 echo ""
-warn "Make sure to set API_KEY and INGESTOR_URL in ${ENV_FILE}!"
+warn "Set api_key and scale connection details in ${JSON_FILE}!"

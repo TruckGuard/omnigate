@@ -84,8 +84,9 @@ jobs:
         run: |
           mkdir -p release-assets
           find dist/ -type f -name 'scale-daemon-*' -exec cp {} release-assets/ \;
-          cp edge/scale-daemon/install.sh           release-assets/
-          cp edge/scale-daemon/scale-daemon.service release-assets/
+          cp edge/scale-daemon/install.sh            release-assets/
+          cp edge/scale-daemon/scale-daemon.service  release-assets/
+          cp edge/scale-daemon/config.example.json   release-assets/
           ls -lh release-assets/
 
       - name: Create GitHub Release

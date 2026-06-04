@@ -9,11 +9,8 @@ Type=simple
 User=omnigate
 Group=omnigate
 
-# All configuration comes from this env file.
-# Create it from config.example.yml or let install.sh generate a template.
-EnvironmentFile=/etc/omnigate/scale.env
+ExecStart=/usr/local/bin/scale-daemon --config /etc/omnigate/scale-daemon.json
 
-ExecStart=/usr/local/bin/scale-daemon
 Restart=on-failure
 RestartSec=5s
 
