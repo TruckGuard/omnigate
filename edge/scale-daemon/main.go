@@ -283,14 +283,17 @@ func (m *multiHandler) WithGroup(name string) slog.Handler {
 
 // weightPayload is the JSON body sent to the ingestor.
 // The adapter's data_mapping should reference $.weight_kg.
+// history_scale contains every reading received during the debounce window,
+// keyed by RFC3339 timestamp, for later analysis.
 type weightPayload struct {
-	WeightKg int `json:"weight_kg"`
+	WeightKg     int            `json:"weight_kg"`
+	HistoryScale map[string]int `json:"history_scale"`
 }
 
 var httpClient *http.Client
 
-func sendWeight(ctx context.Context, cfg *config, weightKg int) error {
-	body, err := json.Marshal(weightPayload{WeightKg: weightKg})
+func sendWeight(ctx context.Context, cfg *config, weightKg int, history map[string]int) error {
+	body, err := json.Marshal(weightPayload{WeightKg: weightKg, HistoryScale: history})
 	if err != nil {
 		return err
 	}
@@ -336,9 +339,15 @@ func runSender(ctx context.Context, cfg *config, weights <-chan int) {
 	debounce := time.Duration(cfg.DebounceMs) * time.Millisecond
 
 	var lastSeen int
-	var peak     int  // max weight seen since last session reset
-	var sent     bool // true after a successful dispatch; reset only on zero-crossing
-	var timerC <-chan time.Time
+	var peak     int
+	var history  map[string]int // all readings in the current window
+	var timerC   <-chan time.Time
+
+	resetWindow := func() {
+		peak = 0
+		history = nil
+		timerC = nil
+	}
 
 	for {
 		select {
@@ -354,57 +363,52 @@ func runSender(ctx context.Context, cfg *config, weights <-chan int) {
 			}
 			lastSeen = w
 
-			// Truck left the scale: reset session so the next vehicle starts clean.
 			if w == 0 || (cfg.MinWeightKg > 0 && w < cfg.MinWeightKg) {
-				if peak > 0 {
-					slog.InfoContext(ctx, "session reset",
-						slog.Int("peak_kg", peak),
-						slog.Bool("was_sent", sent),
-					)
-				}
-				peak = 0
-				sent = false
-				timerC = nil
+				resetWindow()
+				slog.DebugContext(ctx, "weight below threshold, window cleared",
+					slog.Int("weight_kg", w),
+				)
 				continue
 			}
 
-			isNewSession := peak == 0
+			// Record every reading with its timestamp.
+			if history == nil {
+				history = make(map[string]int)
+			}
+			history[time.Now().UTC().Format(time.RFC3339Nano)] = w
+
 			if w > peak {
 				peak = w
 			}
+			slog.DebugContext(ctx, "weight update",
+				slog.Int("weight_kg", w),
+				slog.Int("peak_kg", peak),
+			)
 
-			if isNewSession {
-				slog.InfoContext(ctx, "session started",
-					slog.Int("weight_kg", w),
-					slog.String("device_id", cfg.DeviceID),
-				)
-			} else {
-				slog.DebugContext(ctx, "weight update",
-					slog.Int("weight_kg", w),
-					slog.Int("peak_kg", peak),
-				)
+			// Start the timer only on the first reading of a new window.
+			if timerC == nil {
+				t := time.NewTimer(debounce)
+				timerC = t.C
 			}
-
-			t := time.NewTimer(debounce)
-			timerC = t.C
 
 		case <-timerC:
 			timerC = nil
-			if sent || peak < cfg.MinWeightKg {
-				// Already dispatched once this session — ignore further stable readings.
+			if peak < cfg.MinWeightKg {
+				resetWindow()
 				continue
 			}
-			if err := sendWeight(ctx, cfg, peak); err != nil {
+			if err := sendWeight(ctx, cfg, peak, history); err != nil {
 				slog.ErrorContext(ctx, "failed to send weight",
 					slog.Int("weight_kg", peak),
 					slog.String("error", err.Error()),
 				)
 			} else {
-				sent = true
 				slog.InfoContext(ctx, "weight dispatched",
 					slog.Int("weight_kg", peak),
+					slog.Int("readings_count", len(history)),
 					slog.String("device_id", cfg.DeviceID),
 				)
+				resetWindow()
 			}
 		}
 	}
