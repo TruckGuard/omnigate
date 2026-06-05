@@ -55,7 +55,7 @@ services:
 
   # ── Application services (pre-built GHCR images) ──────────────────────────────
   auth:
-    image: ghcr.io/truckguard/omnigate-auth:latest
+    image: ghcr.io/truckguard/omnigate-auth:${OMNIGATE_VERSION:-latest}
     restart: unless-stopped
     networks:
       - default
@@ -81,7 +81,7 @@ services:
         condition: service_healthy
 
   ingestor:
-    image: ghcr.io/truckguard/omnigate-ingestor:latest
+    image: ghcr.io/truckguard/omnigate-ingestor:${OMNIGATE_VERSION:-latest}
     restart: unless-stopped
     networks:
       - default
@@ -109,7 +109,7 @@ services:
         condition: service_healthy
 
   core:
-    image: ghcr.io/truckguard/omnigate-core:latest
+    image: ghcr.io/truckguard/omnigate-core:${OMNIGATE_VERSION:-latest}
     restart: unless-stopped
     networks:
       - default
@@ -138,7 +138,7 @@ services:
         condition: service_healthy
 
   adapter:
-    image: ghcr.io/truckguard/omnigate-adapter:latest
+    image: ghcr.io/truckguard/omnigate-adapter:${OMNIGATE_VERSION:-latest}
     restart: unless-stopped
     networks:
       - default
@@ -161,7 +161,7 @@ services:
         condition: service_healthy
 
   puller:
-    image: ghcr.io/truckguard/omnigate-puller:latest
+    image: ghcr.io/truckguard/omnigate-puller:${OMNIGATE_VERSION:-latest}
     restart: unless-stopped
     networks:
       - default
@@ -177,7 +177,7 @@ services:
 
   # ── Frontend ──────────────────────────────────────────────────────────────────
   frontend:
-    image: ghcr.io/truckguard/omnigate-frontend:latest
+    image: ghcr.io/truckguard/omnigate-frontend:${OMNIGATE_VERSION:-latest}
     restart: unless-stopped
     environment:
       - PUBLIC_API_BASE=${PUBLIC_URL:-}
@@ -207,7 +207,7 @@ services:
 networks:
   omnigate-observability:
     name: omnigate-observability
-    driver: bridge
+    external: true
 
 volumes:
   postgres_data:

@@ -82,12 +82,51 @@ jobs:
 
       - name: Collect release assets
         run: |
-          mkdir -p release-assets
-          find dist/ -type f -name 'scale-daemon-*' -exec cp {} release-assets/ \;
-          cp edge/scale-daemon/install.sh            release-assets/
-          cp edge/scale-daemon/scale-daemon.service  release-assets/
-          cp edge/scale-daemon/config.example.json   release-assets/
-          ls -lh release-assets/
+          # ── Edge daemon binaries ──────────────────────────────────────────
+          mkdir -p release-assets/edge
+          find dist/ -type f -name 'scale-daemon-*' -exec cp {} release-assets/edge/ \;
+          cp edge/scale-daemon/install.sh           release-assets/edge/install-daemon.sh
+          cp edge/scale-daemon/scale-daemon.service release-assets/edge/
+          cp edge/scale-daemon/config.example.json  release-assets/edge/
+
+          # ── Backend infra files (keep directory structure — compose uses relative paths) ──
+          mkdir -p release-assets/infra/nginx \
+                   release-assets/infra/postgres \
+                   release-assets/infra/garage \
+                   release-assets/docs
+          cp infra/docker-compose.prod.yaml         release-assets/infra/
+          cp .env.example                           release-assets/
+          cp infra/nginx/nginx.prod.conf            release-assets/infra/nginx/
+          cp infra/postgres/init-db.sh              release-assets/infra/postgres/
+          cp infra/garage/Dockerfile                release-assets/infra/garage/
+          cp infra/garage/entrypoint.sh             release-assets/infra/garage/
+          cp infra/garage/garage.toml               release-assets/infra/garage/
+          cp docs/index.html docs/openapi.yaml      release-assets/docs/
+
+          # ── Observability stack ───────────────────────────────────────────
+          mkdir -p release-assets/observability/clickhouse \
+                   release-assets/observability/dashboards
+          cp observability/docker-compose.yaml              release-assets/observability/
+          cp observability/.env.example                     release-assets/observability/
+          cp observability/otel-collector-config.yaml       release-assets/observability/
+          cp observability/otel-collector-manager-config.yaml release-assets/observability/
+          cp observability/blackbox.yml                     release-assets/observability/
+          cp observability/seed-dashboards.sh               release-assets/observability/
+          cp observability/clickhouse/*.xml                 release-assets/observability/clickhouse/
+          cp observability/dashboards/*.json                release-assets/observability/dashboards/
+
+          # ── Top-level deploy script ───────────────────────────────────────
+          cp deploy.sh release-assets/
+
+          echo "── Release assets ──────────────────────────"
+          find release-assets/ -type f | sort
+
+      - name: Create release ZIP
+        run: |
+          ZIP_NAME="omnigate-${{ github.ref_name }}.zip"
+          (cd release-assets && zip -r "../${ZIP_NAME}" .)
+          cp "${ZIP_NAME}" release-assets/
+          echo "ZIP size: $(du -sh "${ZIP_NAME}" | cut -f1)"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -95,7 +134,14 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: OmniGate ${{ github.ref_name }}
           generate_release_notes: true
-          files: release-assets/*
+          files: |
+            release-assets/omnigate-${{ github.ref_name }}.zip
+            release-assets/edge/scale-daemon-linux-amd64
+            release-assets/edge/scale-daemon-linux-arm64
+            release-assets/edge/install-daemon.sh
+            release-assets/edge/scale-daemon.service
+            release-assets/edge/config.example.json
+            release-assets/deploy.sh
 
   # ── 3. Build & push service Docker images tagged with the version ──────────
   build-services:
