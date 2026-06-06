@@ -210,7 +210,7 @@
   });
 </script>
 
-<TopBar crumbs={['OmniGate', 'API ключі']} title="API ключі">
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'API ключі'}]} title="API ключі">
   {#snippet actions()}
     <PermGuard permission="manage:keys">
       <Button size="sm" onclick={openCreate}>

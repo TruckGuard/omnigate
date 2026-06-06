@@ -273,7 +273,7 @@
   }
 </script>
 
-<TopBar crumbs={["OmniGate", "Транзакції", tx?.code ?? "…"]}>
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Транзакції',href:'/'},{label:tx?.code ?? '…'}]}>
   {#snippet actions()}
     <Button size="sm">Експорт</Button>
   {/snippet}

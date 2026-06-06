@@ -54,7 +54,7 @@
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Пристрої']} title="Пристрої">
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Пристрої'}]} title="Пристрої">
   {#snippet actions()}
     <PermGuard permission="manage:keys">
       <Button size="sm" onclick={() => goto('/settings/devices/new')}>

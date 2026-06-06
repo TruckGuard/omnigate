@@ -249,7 +249,7 @@
 </script>
 
 <TopBar
-  crumbs={['OmniGate', 'Пристрої', isNew ? 'Новий пристрій' : sourceId]}
+  crumbs={[{label:'OmniGate',href:'/'},{label:'Пристрої',href:'/settings/devices'},{label:isNew ? 'Новий пристрій' : sourceId}]}
   title={isNew ? 'Новий пристрій' : 'Редагувати пристрій'}
 >
   {#snippet actions()}

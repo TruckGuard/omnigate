@@ -3,15 +3,25 @@
   import { Menu } from 'lucide-svelte';
   import { mobileNav } from '$lib/stores/mobileNav.svelte.js';
 
+  type Crumb = string | { label: string; href?: string };
+
   let {
-    crumbs = [] as string[],
+    crumbs = [] as Crumb[],
     title = '',
     actions,
   }: {
-    crumbs?: string[];
+    crumbs?: Crumb[];
     title?: string;
     actions?: Snippet;
   } = $props();
+
+  function crumbLabel(c: Crumb): string {
+    return typeof c === 'string' ? c : c.label;
+  }
+
+  function crumbHref(c: Crumb): string | undefined {
+    return typeof c === 'string' ? undefined : c.href;
+  }
 </script>
 
 <div class="h-[52px] w-full border-b border-border bg-card flex items-center px-4 gap-3 sticky top-0 z-10 shrink-0">
@@ -30,7 +40,19 @@
         {#if i > 0}
           <span class="text-border">/</span>
         {/if}
-        <span class={i === crumbs.length - 1 ? 'text-foreground font-medium' : ''}>{crumb}</span>
+        {@const isLast = i === crumbs.length - 1}
+        {@const href = crumbHref(crumb)}
+        {@const label = crumbLabel(crumb)}
+        {#if href}
+          <a
+            {href}
+            class={isLast
+              ? 'text-foreground font-medium hover:underline underline-offset-2'
+              : 'hover:text-foreground transition-colors'}
+          >{label}</a>
+        {:else}
+          <span class={isLast ? 'text-foreground font-medium' : ''}>{label}</span>
+        {/if}
       {/each}
     </div>
   {/if}

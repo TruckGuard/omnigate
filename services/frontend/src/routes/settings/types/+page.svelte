@@ -147,7 +147,7 @@
   const detailType = $derived(types.find(t => t.id === detailId));
 </script>
 
-<TopBar crumbs={['OmniGate', 'Типи подій']} title="Типи подій">
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Типи подій'}]} title="Типи подій">
   {#snippet actions()}
     <PermGuard permission="manage:types">
       <Button size="sm" onclick={openCreate}>

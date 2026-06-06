@@ -106,7 +106,7 @@
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Користувачі', user?.username ?? '…']}>
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Користувачі',href:'/settings/users'},{label:user?.username ?? '…'}]}>
   {#snippet actions()}
     <Button variant="outline" size="sm" onclick={() => goto('/settings/users')}>
       <ChevronLeft size={14} /> Назад до користувачів

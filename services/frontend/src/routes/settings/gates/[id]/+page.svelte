@@ -68,7 +68,7 @@
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Шлагбауми', gate?.name ?? '…']}>
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Шлагбауми',href:'/settings/gates'},{label:gate?.name ?? '…'}]}>
   {#snippet actions()}
     <Button variant="outline" size="sm" onclick={() => goto('/settings/gates')}>
       <ChevronLeft size={14} /> Шлагбауми

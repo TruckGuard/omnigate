@@ -92,7 +92,7 @@
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Шлагбауми']} title="Шлагбауми">
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Шлагбауми'}]} title="Шлагбауми">
   {#snippet actions()}
     <PermGuard permission="manage:gates">
       <Button size="sm" onclick={openCreate}>

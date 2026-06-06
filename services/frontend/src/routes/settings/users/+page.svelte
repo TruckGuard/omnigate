@@ -117,7 +117,7 @@
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Користувачі']} title="Користувачі">
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Користувачі'}]} title="Користувачі">
   {#snippet actions()}
     <PermGuard permission="manage:users">
       <Button size="sm" onclick={() => (createOpen = true)}>

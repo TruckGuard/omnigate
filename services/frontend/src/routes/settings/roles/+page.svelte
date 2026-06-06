@@ -114,7 +114,7 @@
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Ролі']} title="Ролі">
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Ролі'}]} title="Ролі">
   {#snippet actions()}
     <PermGuard permission="manage:roles">
       <Button size="sm" onclick={() => (newRoleOpen = true)}>

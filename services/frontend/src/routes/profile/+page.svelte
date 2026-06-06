@@ -138,7 +138,7 @@
   }
 </script>
 
-<TopBar crumbs={['OmniGate', 'Профіль']} />
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Профіль'}]} />
 
 <main class="flex-1 p-4 sm:p-6 max-w-[1080px] grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-6 items-start">
   <!-- Left column -->

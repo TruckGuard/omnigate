@@ -170,7 +170,7 @@
   });
 </script>
 
-<TopBar crumbs={['OmniGate']} title="Транзакції">
+<TopBar crumbs={[{label:'OmniGate',href:'/'}]} title="Транзакції">
   {#snippet actions()}
     <Button variant="outline" size="sm" onclick={loadTransactions} disabled={loading}>
       <RefreshCw size={14} class={loading ? 'animate-spin' : ''} />
