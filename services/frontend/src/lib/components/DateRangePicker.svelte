@@ -5,9 +5,6 @@
   import { CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-svelte';
   import { cn } from '$lib/utils.js';
 
-  const HOURS   = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-  const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
-
   interface Props {
     startAt?: string; // ISO UTC string or ''
     endAt?: string;
@@ -40,7 +37,6 @@
   // ─── Popover state ────────────────────────────────────────
   let open = $state(false);
 
-  // Working state — only written to props on "Apply"
   let rangeValue = $state<DateRange>({ start: isoToCalDate(startAt), end: isoToCalDate(endAt) });
   let startTime  = $state(isoToTime(startAt, '00:00'));
   let endTime    = $state(isoToTime(endAt, '23:59'));
@@ -78,19 +74,45 @@
   const hasValue = $derived(!!(startAt || endAt));
 
   const triggerLabel = $derived.by(() => {
-    const date = (iso: string) => {
+    const fmtDate = (iso: string) => {
       const d = new Date(iso);
       return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
     };
-    const time = (iso: string) => {
+    const fmtTime = (iso: string) => {
       const d = new Date(iso);
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     };
     if (!startAt && !endAt) return 'Діапазон дат';
-    if (startAt && !endAt)  return `від ${date(startAt)} ${time(startAt)}`;
-    if (!startAt && endAt)  return `до ${date(endAt)} ${time(endAt)}`;
-    return `${date(startAt)} ${time(startAt)} — ${date(endAt)} ${time(endAt)}`;
+    if (startAt && !endAt)  return `від ${fmtDate(startAt)} ${fmtTime(startAt)}`;
+    if (!startAt && endAt)  return `до ${fmtDate(endAt)} ${fmtTime(endAt)}`;
+    return `${fmtDate(startAt)} ${fmtTime(startAt)} — ${fmtDate(endAt)} ${fmtTime(endAt)}`;
   });
+
+  // ─── Time number inputs (24h) ─────────────────────────────
+  // Shared class for HH and MM number inputs — spin buttons hidden in all browsers.
+  const timeNumClass = [
+    'h-8 w-10 rounded-md border border-input bg-background',
+    'text-center text-xs tabular-nums font-medium outline-none transition-colors',
+    'focus:ring-2 focus:ring-ring',
+    '[&::-webkit-inner-spin-button]:appearance-none',
+    '[&::-webkit-outer-spin-button]:appearance-none',
+    '[-moz-appearance:textfield]',
+  ].join(' ');
+
+  function getH(t: string) { return parseInt(t.split(':')[0]) || 0; }
+  function getM(t: string) { return parseInt(t.split(':')[1]) || 0; }
+  function pad(n: number)  { return String(n).padStart(2, '0'); }
+
+  function setHour(which: 'start' | 'end', raw: string) {
+    const h = Math.min(23, Math.max(0, parseInt(raw) || 0));
+    if (which === 'start') startTime = `${pad(h)}:${pad(getM(startTime))}`;
+    else                   endTime   = `${pad(h)}:${pad(getM(endTime))}`;
+  }
+  function setMin(which: 'start' | 'end', raw: string) {
+    const m = Math.min(59, Math.max(0, parseInt(raw) || 0));
+    if (which === 'start') startTime = `${pad(getH(startTime))}:${pad(m)}`;
+    else                   endTime   = `${pad(getH(endTime))}:${pad(m)}`;
+  }
 </script>
 
 <Popover.Root bind:open onOpenChange={(v) => v && syncFromProps()}>
@@ -155,44 +177,41 @@
           </div>
 
           {#each months as month}
-            <RangeCalendar.Grid class="w-full border-collapse">
-              <!-- Weekday labels -->
+            <RangeCalendar.Grid>
               <RangeCalendar.GridHead>
-                <RangeCalendar.GridRow class="flex mb-1">
+                <RangeCalendar.GridRow>
                   {#each weekdays as wd}
-                    <RangeCalendar.HeadCell class="w-9 h-7 flex items-center justify-center text-[11px] font-normal text-muted-foreground">
+                    <RangeCalendar.HeadCell
+                      class="w-9 h-8 text-center align-middle text-[11px] font-normal text-muted-foreground"
+                    >
                       {wd.slice(0, 2)}
                     </RangeCalendar.HeadCell>
                   {/each}
                 </RangeCalendar.GridRow>
               </RangeCalendar.GridHead>
 
-              <!-- Day cells -->
               <RangeCalendar.GridBody>
                 {#each month.weeks as weekDates}
-                  <RangeCalendar.GridRow class="flex">
+                  <RangeCalendar.GridRow>
                     {#each weekDates as date}
-                      <RangeCalendar.Cell {date} month={month.value} class="relative p-0"
-                        ondblclick={() => selectSingleDay(date as CalendarDate)}>
+                      <RangeCalendar.Cell
+                        {date}
+                        month={month.value}
+                        class="p-0"
+                        ondblclick={() => selectSingleDay(date as CalendarDate)}
+                      >
                         <RangeCalendar.Day
                           class={cn(
                             "size-9 text-sm flex items-center justify-center cursor-pointer transition-colors rounded-md",
                             "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            // Start & end of selection
                             "[&[data-selection-start]]:bg-primary [&[data-selection-start]]:text-primary-foreground [&[data-selection-start]]:hover:bg-primary/90",
                             "[&[data-selection-end]]:bg-primary [&[data-selection-end]]:text-primary-foreground [&[data-selection-end]]:hover:bg-primary/90",
-                            // Middle of range
                             "[&[data-range-middle]]:bg-primary/12 [&[data-range-middle]]:rounded-none [&[data-range-middle]]:hover:bg-primary/20",
-                            // Round only the outer corners at start/end of a multi-day range.
-                            // When start === end (single day), both attrs are on the same element —
-                            // the :not() guards keep all four corners rounded (base rounded-md applies).
+                            // Single-day: both attrs on same element → :not() guards keep all corners (base rounded-md)
                             "[&[data-range-start]:not([data-range-end])]:rounded-l-md [&[data-range-start]:not([data-range-end])]:rounded-r-none",
                             "[&[data-range-end]:not([data-range-start])]:rounded-r-md [&[data-range-end]:not([data-range-start])]:rounded-l-none",
-                            // Today
                             "[&[data-today]:not([data-selection-start]):not([data-selection-end])]:font-semibold [&[data-today]:not([data-selection-start]):not([data-selection-end])]:text-primary",
-                            // Outside current month
                             "[&[data-outside-month]]:opacity-30 [&[data-outside-month]]:pointer-events-none",
-                            // Disabled
                             "[&[data-disabled]]:opacity-30 [&[data-disabled]]:pointer-events-none"
                           )}
                         />
@@ -206,47 +225,48 @@
         {/snippet}
       </RangeCalendar.Root>
 
-      <!-- Time inputs (24 h) -->
-      <!-- Custom 24h selects — bypasses browser AM/PM locale entirely -->
-      <div class="mt-3 pt-3 border-t border-border flex items-center gap-3">
-        <div class="flex items-center gap-1.5 min-w-0">
+      <!-- Time inputs (24h number spinners) -->
+      <div class="mt-3 pt-3 border-t border-border flex items-center gap-4">
+        <!-- Start time -->
+        <div class="flex items-center gap-1.5">
           <span class="text-xs text-muted-foreground shrink-0">від</span>
-          <div class="flex items-center gap-0.5">
-            <select
-              value={startTime.split(':')[0] ?? '00'}
-              onchange={(e) => { startTime = `${(e.target as HTMLSelectElement).value}:${startTime.split(':')[1] ?? '00'}`; }}
-              class="h-8 w-[52px] rounded-md border border-input bg-background text-center text-xs outline-none focus:ring-2 focus:ring-ring cursor-pointer"
-            >
-              {#each HOURS as h}<option value={h}>{h}</option>{/each}
-            </select>
-            <span class="text-muted-foreground text-sm font-medium select-none">:</span>
-            <select
-              value={startTime.split(':')[1] ?? '00'}
-              onchange={(e) => { startTime = `${startTime.split(':')[0] ?? '00'}:${(e.target as HTMLSelectElement).value}`; }}
-              class="h-8 w-[52px] rounded-md border border-input bg-background text-center text-xs outline-none focus:ring-2 focus:ring-ring cursor-pointer"
-            >
-              {#each MINUTES as m}<option value={m}>{m}</option>{/each}
-            </select>
+          <div class="flex items-center gap-1">
+            <input
+              type="number" min="0" max="23"
+              value={getH(startTime)}
+              onchange={(e) => setHour('start', (e.target as HTMLInputElement).value)}
+              onblur={(e)   => setHour('start', (e.target as HTMLInputElement).value)}
+              class={timeNumClass}
+            />
+            <span class="text-muted-foreground font-semibold text-xs select-none">:</span>
+            <input
+              type="number" min="0" max="59"
+              value={getM(startTime)}
+              onchange={(e) => setMin('start', (e.target as HTMLInputElement).value)}
+              onblur={(e)   => setMin('start', (e.target as HTMLInputElement).value)}
+              class={timeNumClass}
+            />
           </div>
         </div>
-        <div class="flex items-center gap-1.5 min-w-0">
+        <!-- End time -->
+        <div class="flex items-center gap-1.5">
           <span class="text-xs text-muted-foreground shrink-0">до</span>
-          <div class="flex items-center gap-0.5">
-            <select
-              value={endTime.split(':')[0] ?? '23'}
-              onchange={(e) => { endTime = `${(e.target as HTMLSelectElement).value}:${endTime.split(':')[1] ?? '59'}`; }}
-              class="h-8 w-[52px] rounded-md border border-input bg-background text-center text-xs outline-none focus:ring-2 focus:ring-ring cursor-pointer"
-            >
-              {#each HOURS as h}<option value={h}>{h}</option>{/each}
-            </select>
-            <span class="text-muted-foreground text-sm font-medium select-none">:</span>
-            <select
-              value={endTime.split(':')[1] ?? '59'}
-              onchange={(e) => { endTime = `${endTime.split(':')[0] ?? '23'}:${(e.target as HTMLSelectElement).value}`; }}
-              class="h-8 w-[52px] rounded-md border border-input bg-background text-center text-xs outline-none focus:ring-2 focus:ring-ring cursor-pointer"
-            >
-              {#each MINUTES as m}<option value={m}>{m}</option>{/each}
-            </select>
+          <div class="flex items-center gap-1">
+            <input
+              type="number" min="0" max="23"
+              value={getH(endTime)}
+              onchange={(e) => setHour('end', (e.target as HTMLInputElement).value)}
+              onblur={(e)   => setHour('end', (e.target as HTMLInputElement).value)}
+              class={timeNumClass}
+            />
+            <span class="text-muted-foreground font-semibold text-xs select-none">:</span>
+            <input
+              type="number" min="0" max="59"
+              value={getM(endTime)}
+              onchange={(e) => setMin('end', (e.target as HTMLInputElement).value)}
+              onblur={(e)   => setMin('end', (e.target as HTMLInputElement).value)}
+              class={timeNumClass}
+            />
           </div>
         </div>
       </div>
