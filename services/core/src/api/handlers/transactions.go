@@ -32,13 +32,14 @@ func HandleListTransactions(c *gin.Context) {
 	}
 
 	txs, total := repository.ListTransactions(repository.TransactionFilter{
-		GateID:  c.Query("gate_id"),
-		Search:  c.Query("search"),
-		Open:    c.Query("open") == "true",
-		Page:    page,
-		Limit:   limit,
-		StartAt: startAt,
-		EndAt:   endAt,
+		GateID:    c.Query("gate_id"),
+		Search:    c.Query("search"),
+		Open:      c.Query("open") == "true",
+		Page:      page,
+		Limit:     limit,
+		StartAt:   startAt,
+		EndAt:     endAt,
+		SourceIDs: c.QueryArray("source_ids"),
 	})
 
 	c.JSON(http.StatusOK, gin.H{

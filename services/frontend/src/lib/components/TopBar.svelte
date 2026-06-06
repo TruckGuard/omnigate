@@ -14,7 +14,7 @@
   } = $props();
 </script>
 
-<div class="h-[48px] border-b border-border bg-card flex items-center px-4 gap-3 sticky top-0 z-10 shrink-0">
+<div class="h-[52px] w-full border-b border-border bg-card flex items-center px-4 gap-3 sticky top-0 z-10 shrink-0">
   <!-- Hamburger: mobile only -->
   <button
     class="md:hidden flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted text-muted-foreground shrink-0"

@@ -39,13 +39,14 @@ func GetTransactionRaw(id uuid.UUID) *models.Transaction {
 }
 
 type TransactionFilter struct {
-	GateID  string
-	Search  string
-	Open    bool // if true, only return currently-open transactions (Valkey key exists)
-	Page    int
-	Limit   int
-	StartAt *time.Time
-	EndAt   *time.Time
+	GateID    string
+	Search    string
+	Open      bool // if true, only return currently-open transactions (Valkey key exists)
+	Page      int
+	Limit     int
+	StartAt   *time.Time
+	EndAt     *time.Time
+	SourceIDs []string // filter to transactions that contain at least one event from these source_ids
 }
 
 func ListTransactions(f TransactionFilter) ([]models.Transaction, int64) {
@@ -61,6 +62,12 @@ func ListTransactions(f TransactionFilter) ([]models.Transaction, int64) {
 	}
 	if f.EndAt != nil {
 		q = q.Where("created_at <= ?", f.EndAt)
+	}
+	if len(f.SourceIDs) > 0 {
+		q = q.Where(
+			`EXISTS (SELECT 1 FROM events WHERE events.transaction_id = transactions.id AND events.source_id IN (?))`,
+			f.SourceIDs,
+		)
 	}
 	if f.Search != "" {
 		// Шукаємо одночасно:

@@ -13,7 +13,7 @@
   import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select/index.js';
   import { api } from '$lib/api.js';
   import { fmtDate } from '$lib/utils.js';
-  import type { Gate, Transaction } from '$lib/types.js';
+  import type { APIKey, DeviceConfig, Gate, Transaction } from '$lib/types.js';
   import DateRangePicker from '$lib/components/DateRangePicker.svelte';
   import { Search, RefreshCw, Eye, History, X } from 'lucide-svelte';
 
@@ -33,8 +33,13 @@
   let openOnly        = $state(_initialPage.url.searchParams.get('open') === 'true');
   let startAt = $state(_initialPage.url.searchParams.get('start_at') ?? '');
   let endAt   = $state(_initialPage.url.searchParams.get('end_at') ?? '');
-  let gates           = $state<Gate[]>([]);
-  let loading         = $state(false);
+  let gates             = $state<Gate[]>([]);
+  let devices           = $state<DeviceConfig[]>([]);
+  let apiKeys           = $state<APIKey[]>([]);
+  let selectedSourceIDs = $state<string[]>(
+    _initialPage.url.searchParams.getAll('source_ids')
+  );
+  let loading           = $state(false);
   let selectedId      = $state('');
   let prevTotal       = $state(-1);
 
@@ -96,16 +101,29 @@
     try { gates = await api.gates.list(); } catch {}
   }
 
+  async function loadDevices() {
+    try { devices = await api.configs.list(); } catch {}
+    // API-ключі потрібні лише для відображення назви пристрою.
+    // Якщо немає дозволу read:keys — мовчки залишаємо порожнім; fallback → source_id.
+    try { apiKeys = await api.auth.keys.list(); } catch {}
+  }
+
+  function deviceLabel(cfg: DeviceConfig): string {
+    const key = apiKeys.find(k => String(k.id) === cfg.source_id);
+    return key?.owner_name ?? cfg.source_id;
+  }
+
   async function loadTransactions() {
     loading = true;
     try {
       const res = await api.transactions.list({
         page, limit: PAGE_LIMIT,
-        ...(gateFilter      && { gate_id: gateFilter }),
-        ...(openOnly        && { open: 'true' }),
-        ...(debouncedSearch && { search: debouncedSearch }),
-        ...(startAt && { start_at: startAt }),
-        ...(endAt   && { end_at:   endAt }),
+        ...(gateFilter                  && { gate_id: gateFilter }),
+        ...(openOnly                    && { open: 'true' }),
+        ...(debouncedSearch             && { search: debouncedSearch }),
+        ...(startAt                     && { start_at: startAt }),
+        ...(endAt                       && { end_at: endAt }),
+        ...(selectedSourceIDs.length    && { source_ids: selectedSourceIDs }),
       });
       if (prevTotal >= 0 && res.total > prevTotal) toast.success('Нова транзакція розпочата');
       prevTotal = res.total;
@@ -118,7 +136,7 @@
     }
   }
 
-  $effect(() => { loadGates(); });
+  $effect(() => { loadGates(); loadDevices(); });
 
   // Ефект дебаунсу: читає «сирий» search, через 300мс записує в debouncedSearch.
   // Cleanup скидає таймер при кожній новій зміні → запит іде лише після паузи.
@@ -141,6 +159,7 @@
     if (debouncedSearch) params.set('search', debouncedSearch);
     if (startAt) params.set('start_at', startAt);
     if (endAt)   params.set('end_at',   endAt);
+    selectedSourceIDs.forEach(id => params.append('source_ids', id));
     const qs = params.toString();
     if (window.location.search !== (qs ? `?${qs}` : '')) {
       history.replaceState(null, '', qs ? `/?${qs}` : '/');
@@ -151,7 +170,7 @@
   });
 </script>
 
-<TopBar crumbs={['OmniGate', 'Транзакції']} title="Транзакції">
+<TopBar crumbs={['OmniGate']} title="Транзакції">
   {#snippet actions()}
     <Button variant="outline" size="sm" onclick={loadTransactions} disabled={loading}>
       <RefreshCw size={14} class={loading ? 'animate-spin' : ''} />
@@ -185,6 +204,23 @@
     </Select>
 
     <DateRangePicker bind:startAt bind:endAt />
+
+    {#if devices.length > 0}
+      <Select type="multiple" bind:value={selectedSourceIDs} onValueChange={() => { page = 1; }}>
+        <SelectTrigger class="w-[180px]">
+          {#if selectedSourceIDs.length === 0}
+            Всі пристрої
+          {:else}
+            {selectedSourceIDs.length} {selectedSourceIDs.length === 1 ? 'пристрій' : 'пристроїв'}
+          {/if}
+        </SelectTrigger>
+        <SelectContent>
+          {#each devices as d}
+            <SelectItem value={d.source_id}>{deviceLabel(d)}</SelectItem>
+          {/each}
+        </SelectContent>
+      </Select>
+    {/if}
 
     <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
       <Switch bind:checked={openOnly} onCheckedChange={() => { page = 1; }} />

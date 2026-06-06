@@ -45,6 +45,7 @@ export interface TxQuery {
   search?: string;
   start_at?: string;
   end_at?: string;
+  source_ids?: string[];
 }
 
 export const api = {
@@ -104,6 +105,7 @@ export const api = {
       if (q.search)   p.set('search', q.search);
       if (q.start_at) p.set('start_at', q.start_at);
       if (q.end_at)   p.set('end_at', q.end_at);
+      if (q.source_ids?.length) q.source_ids.forEach(id => p.append('source_ids', id));
       return req<TransactionListResponse>(`/api/v1/transactions?${p}`);
     },
     get: (id: string) => req<TransactionDetail>(`/api/v1/transactions/${id}`),

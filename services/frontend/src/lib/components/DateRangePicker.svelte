@@ -57,6 +57,13 @@
     open = false;
   }
 
+  function selectSingleDay(d: CalendarDate) {
+    rangeValue = { start: d, end: d };
+    startTime = '00:00';
+    endTime = '23:59';
+    apply();
+  }
+
   function clear(e?: Event) {
     e?.stopPropagation();
     rangeValue = { start: undefined, end: undefined };
@@ -165,7 +172,8 @@
                 {#each month.weeks as weekDates}
                   <RangeCalendar.GridRow class="flex">
                     {#each weekDates as date}
-                      <RangeCalendar.Cell {date} month={month.value} class="relative p-0">
+                      <RangeCalendar.Cell {date} month={month.value} class="relative p-0"
+                        ondblclick={() => selectSingleDay(date as CalendarDate)}>
                         <RangeCalendar.Day
                           class={cn(
                             "size-9 text-sm flex items-center justify-center cursor-pointer transition-colors rounded-md",
@@ -175,9 +183,11 @@
                             "[&[data-selection-end]]:bg-primary [&[data-selection-end]]:text-primary-foreground [&[data-selection-end]]:hover:bg-primary/90",
                             // Middle of range
                             "[&[data-range-middle]]:bg-primary/12 [&[data-range-middle]]:rounded-none [&[data-range-middle]]:hover:bg-primary/20",
-                            // Round only the outer corners at start/end
-                            "[&[data-range-start]]:rounded-l-md [&[data-range-start]]:rounded-r-none",
-                            "[&[data-range-end]]:rounded-r-md [&[data-range-end]]:rounded-l-none",
+                            // Round only the outer corners at start/end of a multi-day range.
+                            // When start === end (single day), both attrs are on the same element —
+                            // the :not() guards keep all four corners rounded (base rounded-md applies).
+                            "[&[data-range-start]:not([data-range-end])]:rounded-l-md [&[data-range-start]:not([data-range-end])]:rounded-r-none",
+                            "[&[data-range-end]:not([data-range-start])]:rounded-r-md [&[data-range-end]:not([data-range-start])]:rounded-l-none",
                             // Today
                             "[&[data-today]:not([data-selection-start]):not([data-selection-end])]:font-semibold [&[data-today]:not([data-selection-start]):not([data-selection-end])]:text-primary",
                             // Outside current month
