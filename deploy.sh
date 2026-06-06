@@ -87,20 +87,26 @@ ask_optional() {
 }
 
 ask_secret() {
-  local var="$1" prompt="$2"
+  local var="$1" prompt="$2" default="${3:-}"
   local current="${!var:-}"
   if [[ -n "$current" ]]; then
     log_info "${prompt}: ${DIM}******** (preset)${RESET}"
     return
   fi
-  read -rsp "  ${prompt}: " input
-  echo
-  while [[ -z "$input" ]]; do
-    log_warn "This field is required."
+  if [[ -n "$default" ]]; then
+    read -rsp "  ${prompt} [auto-generated, Enter to accept]: " input
+    echo
+    printf -v "$var" '%s' "${input:-$default}"
+  else
     read -rsp "  ${prompt}: " input
     echo
-  done
-  printf -v "$var" '%s' "$input"
+    while [[ -z "$input" ]]; do
+      log_warn "This field is required."
+      read -rsp "  ${prompt}: " input
+      echo
+    done
+    printf -v "$var" '%s' "$input"
+  fi
 }
 
 ask_menu() {
@@ -318,24 +324,23 @@ configure_env() {
     [[ "${overwrite,,}" == "y" ]] || { log_info "Keeping existing ${ENV_FILE}"; return; }
   fi
 
-  log_info "Configure the required secrets. Press Enter to keep the shown default."
-  echo
-
-  # Secrets
   local WORKER_SYSTEM_KEY PULLER_API_KEY ADMIN_DEFAULT_PASSWORD
   local AUTH_PASSWORD CORE_PASSWORD POSTGRES_PASSWORD
   local GARAGE_RPC_SECRET STORAGE_ACCESS_KEY STORAGE_SECRET_KEY
   local PUBLIC_URL GATEWAY_PORT
 
-  ask_secret WORKER_SYSTEM_KEY   "Worker system key"
-  ask_secret PULLER_API_KEY      "Puller API key"
-  ask_secret ADMIN_DEFAULT_PASSWORD "Admin default password"
-  ask_secret AUTH_PASSWORD       "Auth DB password"
-  ask_secret CORE_PASSWORD       "Core DB password"
-  ask_secret POSTGRES_PASSWORD   "Postgres superuser password"
-  ask_secret GARAGE_RPC_SECRET   "Garage RPC secret (64 hex chars)"
-  ask_secret STORAGE_ACCESS_KEY  "Garage storage access key"
-  ask_secret STORAGE_SECRET_KEY  "Garage storage secret key"
+  log_info "Secrets below are auto-generated. Press Enter to accept or type your own."
+  echo
+
+  ask_secret WORKER_SYSTEM_KEY      "Worker system key"              "$(openssl rand -hex 32)"
+  ask_secret PULLER_API_KEY         "Puller API key"                 "$(openssl rand -hex 32)"
+  ask_secret ADMIN_DEFAULT_PASSWORD "Admin default password (login)" ""
+  ask_secret AUTH_PASSWORD          "Auth DB password"               "$(openssl rand -hex 16)"
+  ask_secret CORE_PASSWORD          "Core DB password"               "$(openssl rand -hex 16)"
+  ask_secret POSTGRES_PASSWORD      "Postgres superuser password"    "$(openssl rand -hex 16)"
+  ask_secret GARAGE_RPC_SECRET      "Garage RPC secret"              "$(openssl rand -hex 32)"
+  ask_secret STORAGE_ACCESS_KEY     "Garage storage access key"      "GK$(openssl rand -hex 12)"
+  ask_secret STORAGE_SECRET_KEY     "Garage storage secret key"      "$(openssl rand -hex 32)"
 
   PUBLIC_URL="${PUBLIC_URL:-}"
   GATEWAY_PORT="${GATEWAY_PORT:-}"
@@ -386,6 +391,53 @@ EOF
   log_ok "${ENV_FILE} written (permissions: 600)"
 }
 
+# ── Backend: validate .env before deploying ───────────────────────────────────
+validate_env() {
+  log_section "Validating ${ENV_FILE}"
+  [[ -f "${ENV_FILE}" ]] || die "${ENV_FILE} not found. Run with MODE=install or create it first."
+
+  local errors=0 val
+
+  _env_get() { grep -E "^$1=" "${ENV_FILE}" | cut -d= -f2- | tr -d '"' || true; }
+
+  local placeholder_keys=(
+    WORKER_SYSTEM_KEY PULLER_API_KEY ADMIN_DEFAULT_PASSWORD
+    GARAGE_RPC_SECRET STORAGE_ACCESS_KEY STORAGE_SECRET_KEY
+    POSTGRES_PASSWORD AUTH_PASSWORD CORE_PASSWORD
+  )
+  for key in "${placeholder_keys[@]}"; do
+    val="$(_env_get "$key")"
+    if [[ -z "$val" || "$val" == change_me* || "$val" == GKxxxxx* ]]; then
+      log_error "${key} is not set or still contains a placeholder value"
+      (( errors++ )) || true
+    fi
+  done
+
+  # Garage key ID must be GK + exactly 24 lowercase hex chars
+  val="$(_env_get STORAGE_ACCESS_KEY)"
+  if [[ -n "$val" && "$val" != change_me* && "$val" != GKxxxxx* ]]; then
+    if ! [[ "$val" =~ ^GK[0-9a-f]{24}$ ]]; then
+      log_error "STORAGE_ACCESS_KEY has invalid format (got: ${val})"
+      log_error "  Required: GK followed by exactly 24 lowercase hex chars"
+      log_error "  Generate: echo \"GK\$(openssl rand -hex 12)\""
+      (( errors++ )) || true
+    fi
+  fi
+
+  # Garage RPC secret must be exactly 64 lowercase hex chars
+  val="$(_env_get GARAGE_RPC_SECRET)"
+  if [[ -n "$val" && "$val" != change_me* ]]; then
+    if ! [[ "$val" =~ ^[0-9a-f]{64}$ ]]; then
+      log_error "GARAGE_RPC_SECRET must be exactly 64 lowercase hex chars"
+      log_error "  Generate: openssl rand -hex 32"
+      (( errors++ )) || true
+    fi
+  fi
+
+  (( errors == 0 )) || die "Fix the ${errors} error(s) above in ${ENV_FILE} before deploying."
+  log_ok "${ENV_FILE} looks good"
+}
+
 # ── Backend: set image tags in compose ────────────────────────────────────────
 pin_image_version() {
   # CI tags images as "1.2.3" (semver without the leading v).
@@ -407,6 +459,8 @@ ensure_observability_network() {
 # ── Backend: deploy ────────────────────────────────────────────────────────────
 deploy_backend() {
   log_section "Backend — ${MODE}"
+
+  validate_env
 
   local compose_file="${SCRIPT_DIR}/infra/docker-compose.prod.yaml"
   [[ -f "$compose_file" ]] || die "infra/docker-compose.prod.yaml not found in ${SCRIPT_DIR}"
