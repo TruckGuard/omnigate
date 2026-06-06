@@ -99,6 +99,14 @@
     '[-moz-appearance:textfield]',
   ].join(' ');
 
+  function ukMonthYear(months: Array<{ value: { year: number; month: number } }>): string {
+    if (!months[0]) return '';
+    const { year, month } = months[0].value;
+    const s = new Intl.DateTimeFormat('uk-UA', { month: 'long', year: 'numeric' })
+      .format(new Date(year, month - 1, 1));
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
   function getH(t: string) { return parseInt(t.split(':')[0]) || 0; }
   function getM(t: string) { return parseInt(t.split(':')[1]) || 0; }
   function pad(n: number)  { return String(n).padStart(2, '0'); }
@@ -168,7 +176,7 @@
             >
               <ChevronLeft size={14} />
             </RangeCalendar.PrevButton>
-            <RangeCalendar.Heading class="text-sm font-semibold capitalize" />
+            <span class="text-sm font-semibold">{ukMonthYear(months)}</span>
             <RangeCalendar.NextButton
               class="size-7 rounded-md border border-input bg-transparent hover:bg-muted flex items-center justify-center transition-colors disabled:opacity-40 cursor-pointer"
             >

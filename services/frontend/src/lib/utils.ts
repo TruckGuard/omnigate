@@ -7,11 +7,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return new Date(iso).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 export function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export function fmtDateTime(iso: string): string {
@@ -20,9 +20,9 @@ export function fmtDateTime(iso: string): string {
 
 export function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60_000) return 'just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 60_000) return 'щойно';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} хв тому`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} год тому`;
   return fmtDate(iso);
 }
 
