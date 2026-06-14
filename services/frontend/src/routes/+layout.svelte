@@ -41,6 +41,18 @@
 
     api.auth.validate().then((data) => {
       authStore.setPermissions(data.permissions);
+      authStore.setUserId(Number(data.id));
+      const authId = Number(data.id);
+      if (!isNaN(authId)) {
+        api.profiles.list(authId).then((res) => {
+          const profiles = Array.isArray(res) ? res : [res];
+          if (profiles.length > 0 && profiles[0].id) {
+            const p = profiles[0];
+            const name = [p.first_name, p.last_name].filter(Boolean).join(' ');
+            authStore.fullName = name || null;
+          }
+        }).catch(() => { /* profile is optional */ });
+      }
     }).catch(() => {
       authStore.logout();
       goto('/login');
@@ -64,6 +76,12 @@
   }
 
   const initials = $derived(() => {
+    if (authStore.fullName) {
+      const parts = authStore.fullName.trim().split(/\s+/);
+      return parts.length >= 2
+        ? (parts[0][0] + parts[1][0]).toUpperCase()
+        : parts[0].slice(0, 2).toUpperCase();
+    }
     const u = authStore.username ?? '';
     return u.slice(0, 2).toUpperCase() || '?';
   });
@@ -87,7 +105,23 @@
       return { ...item, firstInSection };
     });
   });
+
+  const pageTitle = $derived(() => {
+    const path = $page.url.pathname;
+    if (path === '/login') return 'Вхід | OmniGate';
+    if (path === '/profile') return 'Профіль | OmniGate';
+    if (path.startsWith('/transactions/')) return 'Транзакція | OmniGate';
+    if (path.startsWith('/settings/devices/')) return 'Пристрій | OmniGate';
+    if (path.startsWith('/settings/gates/')) return 'Шлагбаум | OmniGate';
+    if (path.startsWith('/settings/users/')) return 'Користувач | OmniGate';
+    const item = navItems.find(n => n.href === '/' ? path === '/' : path === n.href);
+    return item ? `${item.label} | OmniGate` : 'OmniGate';
+  });
 </script>
+
+<svelte:head>
+  <title>{pageTitle()}</title>
+</svelte:head>
 
 <div class="min-h-screen flex bg-background" style="font-family: 'Inter', system-ui, sans-serif;">
   {#if !isLoginPage}
@@ -137,7 +171,9 @@
         </div>
         <div class="leading-tight min-w-0 flex-1">
           <div class="text-sm font-medium truncate">{authStore.username ?? '—'}</div>
-          <div class="text-xs text-muted-foreground capitalize">{authStore.role ?? ''}</div>
+          <div class="text-xs text-muted-foreground capitalize truncate">
+            {authStore.fullName ?? authStore.role ?? ''}
+          </div>
         </div>
         <UserCircle size={14} class="text-muted-foreground group-hover:text-foreground shrink-0" />
       </a>
@@ -217,7 +253,9 @@
           </div>
           <div class="leading-tight min-w-0 flex-1">
             <div class="text-sm font-medium truncate">{authStore.username ?? '—'}</div>
-            <div class="text-xs text-muted-foreground capitalize">{authStore.role ?? ''}</div>
+            <div class="text-xs text-muted-foreground capitalize truncate">
+              {authStore.fullName ?? authStore.role ?? ''}
+            </div>
           </div>
           <UserCircle size={14} class="text-muted-foreground group-hover:text-foreground shrink-0" />
         </a>

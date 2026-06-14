@@ -34,7 +34,8 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { ...init, headers });
   if (!res.ok) throw new Error(`${res.status}: ${await res.text().catch(() => res.statusText)}`);
   if (res.status === 204) return undefined as T;
-  return res.json();
+  const text = await res.text();
+  return text ? JSON.parse(text) as T : undefined as T;
 }
 
 export interface TxQuery {

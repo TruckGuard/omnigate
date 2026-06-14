@@ -15,6 +15,7 @@
   } from '$lib/components/ui/select/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
   import { api } from '$lib/api.js';
+  import { authStore } from '$lib/stores/auth.svelte.js';
   import { timeAgo } from '$lib/utils.js';
   import PermGuard from '$lib/components/PermGuard.svelte';
   import type { AuthRole, AuthUser, UserProfile } from '$lib/types.js';
@@ -160,10 +161,12 @@
             <TableCell>
               <PermGuard permission="manage:users">
                 <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                  {#if user.id !== authStore.userId}
                   <Button variant="ghost" size="icon-sm" title="Редагувати роль"
                     onclick={() => { selected = user; editRoleId = String(user.role_id); roleOpen = true; }}>
                     <UserCog size={14} />
                   </Button>
+                  {/if}
                   <Button variant="ghost" size="icon-sm" title="Скинути пароль"
                     onclick={() => { selected = user; newPassword = ''; pwOpen = true; }}>
                     <KeyRound size={14} />

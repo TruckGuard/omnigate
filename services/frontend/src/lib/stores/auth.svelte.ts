@@ -2,6 +2,7 @@ const SESSION_KEY     = 'omnigate_session';
 const USERNAME_KEY    = 'omnigate_username';
 const ROLE_KEY        = 'omnigate_role';
 const PERMISSIONS_KEY = 'omnigate_permissions';
+const USER_ID_KEY     = 'omnigate_user_id';
 
 function read(key: string): string | null {
   if (typeof localStorage === 'undefined') return null;
@@ -22,6 +23,8 @@ class AuthStore {
   username    = $state<string | null>(read(USERNAME_KEY));
   role        = $state<string | null>(read(ROLE_KEY));
   permissions = $state<string[]>(readPermissions());
+  fullName    = $state<string | null>(null);
+  userId      = $state<number | null>(read(USER_ID_KEY) ? Number(read(USER_ID_KEY)) : null);
 
   get isAuthenticated(): boolean {
     return !!this.sessionId;
@@ -47,15 +50,23 @@ class AuthStore {
     localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(permissions));
   }
 
+  setUserId(id: number) {
+    this.userId = id;
+    localStorage.setItem(USER_ID_KEY, String(id));
+  }
+
   logout() {
     this.sessionId   = null;
     this.username    = null;
     this.role        = null;
     this.permissions = [];
+    this.fullName    = null;
+    this.userId      = null;
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(USERNAME_KEY);
     localStorage.removeItem(ROLE_KEY);
     localStorage.removeItem(PERMISSIONS_KEY);
+    localStorage.removeItem(USER_ID_KEY);
   }
 }
 
