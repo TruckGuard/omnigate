@@ -51,22 +51,14 @@
   async function loadProfile() {
     try {
       gates = await api.gates.list();
-      const validate = await api.auth.validate();
-      const authId = Number(validate.id);
-      if (!isNaN(authId)) {
-        const res = await api.profiles.list(authId);
-        // Гарантуємо, що працюємо з масивом
-        const profiles = Array.isArray(res) ? res : [res];
-
-        if (profiles.length > 0 && profiles[0].id) {
-          profile = profiles[0];
-          pfFirst = profile.first_name ?? '';
-          pfLast  = profile.last_name ?? '';
-          pfPhone = profile.phone ?? '';
-          pfGate  = profile.gate_id ?? '';
-          pfNotes = profile.notes ?? '';
-        }
-      }
+      try {
+        profile = await api.profiles.me.get();
+        pfFirst = profile.first_name ?? '';
+        pfLast  = profile.last_name ?? '';
+        pfPhone = profile.phone ?? '';
+        pfGate  = profile.gate_id ?? '';
+        pfNotes = profile.notes ?? '';
+      } catch { /* 404 = no profile yet, form stays empty */ }
     } catch { /* ignore */ }
     finally { profileLoading = false; }
   }
@@ -113,22 +105,13 @@
   async function saveProfile() {
     savingProfile = true;
     try {
-      const data = {
+      profile = await api.profiles.me.save({
         first_name: pfFirst,
         last_name: pfLast,
         phone: pfPhone,
         gate_id: pfGate,
         notes: pfNotes,
-      };
-      if (profile) {
-        profile = await api.profiles.update(profile.id, data);
-      } else {
-        const validate = await api.auth.validate();
-        profile = await api.profiles.create({
-          auth_id: Number(validate.id),
-          ...data,
-        });
-      }
+      });
       toast.success('Профіль збережено');
     } catch {
       toast.error('Помилка збереження профілю');

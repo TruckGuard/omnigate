@@ -241,13 +241,15 @@ func HandleValidate(c *gin.Context) {
 		span.SetAttributes(attribute.String("truckguard.gate_id", gateID))
 	}
 
-	// Return full user data for frontend
+	// Return full user data for frontend.
+	// Return expanded permissions so frontend PermGuard checks work correctly —
+	// the same set that NGINX injects as X-Permissions.
 	if userID != "" {
 		c.JSON(200, gin.H{
 			"id":          userID,
 			"username":    username,
 			"role":        role,
-			"permissions": perms,
+			"permissions": repository.ExpandPermissions(perms),
 			"session_id":  sessionID,
 		})
 	} else {

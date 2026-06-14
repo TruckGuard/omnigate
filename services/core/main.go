@@ -96,6 +96,8 @@ func main() {
 		api.GET("/gates/:id/stats", handlers.HandleGetGateStats)
 
 		// User Profiles (?auth_id=<uint> on GET /profiles for lookup by auth ID)
+		api.GET("/profiles/me", handlers.HandleGetMyProfile)
+		api.PUT("/profiles/me", handlers.HandleSaveMyProfile)
 		api.GET("/profiles", handlers.HandleListUserProfiles)
 		api.GET("/profiles/:id", handlers.HandleGetUserProfile)
 		api.POST("/profiles", handlers.HandleCreateUserProfile)

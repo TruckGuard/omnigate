@@ -104,7 +104,7 @@
   async function loadDevices() {
     try { devices = await api.configs.list(); } catch {}
     // API-ключі потрібні лише для відображення назви пристрою.
-    // Якщо немає дозволу read:keys — мовчки залишаємо порожнім; fallback → source_id.
+    // Якщо немає дозволу read:api-keys — мовчки залишаємо порожнім; fallback → source_id.
     try { apiKeys = await api.auth.keys.list(); } catch {}
   }
 

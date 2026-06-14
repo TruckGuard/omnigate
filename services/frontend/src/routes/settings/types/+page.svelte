@@ -149,7 +149,7 @@
 
 <TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Типи подій'}]} title="Типи подій">
   {#snippet actions()}
-    <PermGuard permission="manage:types">
+    <PermGuard permission="create:types">
       <Button size="sm" onclick={openCreate}>
         <Plus size={14} /> Новий тип
       </Button>
@@ -190,17 +190,19 @@
             <TableCell class="text-sm text-muted-foreground">{Object.keys(t.fields).length}</TableCell>
             <TableCell class="text-sm text-muted-foreground">{fmtDate(t.created_at)}</TableCell>
             <TableCell>
-              <PermGuard permission="manage:types">
-                <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+              <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                <PermGuard permission="update:types">
                   <Button variant="ghost" size="icon-sm" onclick={() => openEdit(t)}>
                     <Pencil size={13} />
                   </Button>
+                </PermGuard>
+                <PermGuard permission="delete:types">
                   <Button variant="ghost" size="icon-sm" class="hover:text-destructive"
                     onclick={() => { deleteTarget = t; deleteOpen = true; }}>
                     <Trash2 size={13} />
                   </Button>
-                </div>
-              </PermGuard>
+                </PermGuard>
+              </div>
             </TableCell>
           </TableRow>
           {#if detailId === t.id}

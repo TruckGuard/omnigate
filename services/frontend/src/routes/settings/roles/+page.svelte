@@ -13,16 +13,18 @@
   } from '$lib/components/ui/dialog/index.js';
   import { api } from '$lib/api.js';
   import type { AuthRole, Permission } from '$lib/types.js';
-  import { Plus, Check } from 'lucide-svelte';
+  import { Plus, Check, Search } from 'lucide-svelte';
   import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
 
   let roles       = $state<AuthRole[]>([]);
   let permissions = $state<Permission[]>([]);
+  let hierarchy   = $state<Record<string, string[]>>({});
   let loading     = $state(true);
   let saving      = $state(false);
 
-  let editRole     = $state<AuthRole | null>(null);
+  let editRole      = $state<AuthRole | null>(null);
   let selectedPerms = $state<string[]>([]);
+  let permSearch    = $state('');
 
   let newRoleOpen = $state(false);
   let newName     = $state('');
@@ -33,7 +35,9 @@
 
   async function load() {
     try {
-      [roles, permissions] = await Promise.all([api.auth.roles(), api.auth.permissions()]);
+      [roles, permissions, hierarchy] = await Promise.all([
+        api.auth.roles(), api.auth.permissions(), api.auth.hierarchy(),
+      ]);
     } catch {
       toast.error('Помилка завантаження ролей');
     } finally {
@@ -41,21 +45,40 @@
     }
   }
 
-  $effect(() => { load(); });
+  function inheritedFrom(selected: string[]): Set<string> {
+    const result = new Set<string>();
+    const queue = [...selected];
+    const visited = new Set<string>();
+    while (queue.length > 0) {
+      const p = queue.shift()!;
+      if (visited.has(p)) continue;
+      visited.add(p);
+      for (const child of (hierarchy[p] ?? [])) {
+        result.add(child);
+        queue.push(child);
+      }
+    }
+    return result;
+  }
 
-  const permsByModule = $derived(() => {
+  function permsByModuleFiltered(search: string): Map<string, Permission[]> {
+    const q = search.toLowerCase().trim();
     const map = new Map<string, Permission[]>();
     for (const p of permissions) {
+      if (q && !p.id.toLowerCase().includes(q) && !p.name.toLowerCase().includes(q)) continue;
       const list = map.get(p.module) ?? [];
       list.push(p);
       map.set(p.module, list);
     }
     return map;
-  });
+  }
+
+  $effect(() => { load(); });
 
   function openEdit(role: AuthRole) {
     editRole = role;
     selectedPerms = (role.permissions ?? []).map(p => p.id);
+    permSearch = '';
   }
 
   function togglePerm(id: string) {
@@ -116,7 +139,7 @@
 
 <TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Ролі'}]} title="Ролі">
   {#snippet actions()}
-    <PermGuard permission="manage:roles">
+    <PermGuard permission="create:roles">
       <Button size="sm" onclick={() => (newRoleOpen = true)}>
         <Plus size={14} /> Нова роль
       </Button>
@@ -138,15 +161,17 @@
               <p class="text-xs text-muted-foreground mt-0.5">{role.description}</p>
             {/if}
           </div>
-          <PermGuard permission="manage:roles">
-            <div class="flex gap-2 shrink-0">
+          <div class="flex gap-2 shrink-0">
+            <PermGuard permission="update-permissions:roles">
               <Button variant="outline" size="sm" onclick={() => openEdit(role)}>Редагувати дозволи</Button>
+            </PermGuard>
+            <PermGuard permission="delete:roles">
               <Button variant="ghost" size="sm" class="hover:text-destructive"
                 onclick={() => { deleteTarget = role; deleteOpen = true; }}>
                 Видалити
               </Button>
-            </div>
-          </PermGuard>
+            </PermGuard>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -173,26 +198,47 @@
       <DialogTitle>Дозволи — {editRole?.name}</DialogTitle>
       <DialogDescription>Оберіть дозволи, які надає ця роль.</DialogDescription>
     </DialogHeader>
-    <div class="space-y-1 max-h-[420px] overflow-y-auto py-2">
-      {#each [...permsByModule()] as [module, perms]}
-        <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">{module}</p>
+    <div class="relative">
+      <Search size={14} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+      <Input bind:value={permSearch} placeholder="Пошук…" class="pl-7 h-8 text-sm" />
+    </div>
+    <div class="space-y-1 max-h-[360px] overflow-y-auto">
+      {#each [inheritedFrom(selectedPerms)] as inherited}
+      {#each [...permsByModuleFiltered(permSearch)] as [module, perms]}
+        <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1 first:mt-0">{module}</p>
         {#each perms as perm}
           {@const active = selectedPerms.includes(perm.id)}
+          {@const isInherited = !active && inherited.has(perm.id)}
           <button
+            type="button"
             onclick={() => togglePerm(perm.id)}
             class="w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors
-              {active ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
+              {active
+                ? 'bg-primary/10 border-primary/30 text-primary'
+                : isInherited
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15'
+                : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
           >
             <div class="text-left">
               <span class="font-mono font-medium text-xs">{perm.id}</span>
-              {#if perm.description}
-                <span class="block text-[11px] mt-0.5 opacity-70">{perm.description}</span>
+              {#if isInherited}
+                <span class="block text-[11px] mt-0.5 opacity-60">↳ через ієрархію</span>
+              {:else if perm.name}
+                <span class="block text-[11px] mt-0.5 opacity-70">{perm.name}</span>
               {/if}
             </div>
-            {#if active}<Check size={14} class="shrink-0" />{/if}
+            {#if active}
+              <Check size={14} class="shrink-0" />
+            {:else if isInherited}
+              <Check size={14} class="shrink-0 opacity-40" />
+            {/if}
           </button>
         {/each}
       {/each}
+      {/each}
+      {#if [...permsByModuleFiltered(permSearch)].length === 0}
+        <p class="text-sm text-muted-foreground text-center py-6">Нічого не знайдено</p>
+      {/if}
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (editRole = null)}>Скасувати</Button>

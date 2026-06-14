@@ -90,7 +90,7 @@
     Promise.all([api.gates.list(), api.types.list(), api.configs.list()])
       .then(([g, t, c]) => { gates = g; eventTypes = t; allConfigs = c; })
       .catch(() => {});
-    // API ключі — лише для відображення назви пристрою; відсутній read:keys не ламає форму.
+    // API ключі — лише для відображення назви пристрою; відсутній read:api-keys не ламає форму.
     api.auth.keys.list().then(k => { apiKeys = k; }).catch(() => {});
   });
 
@@ -254,12 +254,12 @@
 >
   {#snippet actions()}
     {#if !isNew}
-      <PermGuard permission="manage:configs">
+      <PermGuard permission="delete:devices">
         <Button variant="destructive" size="sm" onclick={() => (confirmDelete = true)}>Видалити</Button>
       </PermGuard>
     {/if}
     <Button variant="outline" size="sm" onclick={() => goto('/settings/devices')}>Скасувати</Button>
-    <PermGuard permission="manage:configs">
+    <PermGuard permission={isNew ? 'create:devices' : 'update:devices'}>
       <Button size="sm" onclick={handleSave} disabled={saving}>
         {saving ? 'Збереження…' : 'Зберегти'}
       </Button>
@@ -536,21 +536,23 @@
             </Button>
 
             {#if !isNew && triggerEnabled && triggers.some(t => t.source_id)}
-              <div class="pt-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onclick={handleManualTrigger}
-                  disabled={triggering}
-                  class="gap-2"
-                >
-                  <Zap size={14} />
-                  {triggering ? 'Запуск…' : 'Запустити всі тригери вручну'}
-                </Button>
-                <p class="text-xs text-muted-foreground mt-1">
-                  Негайно поставить задачу в Puller для кожного цільового пристрою.
-                </p>
-              </div>
+              <PermGuard permission="trigger:devices">
+                <div class="pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onclick={handleManualTrigger}
+                    disabled={triggering}
+                    class="gap-2"
+                  >
+                    <Zap size={14} />
+                    {triggering ? 'Запуск…' : 'Запустити всі тригери вручну'}
+                  </Button>
+                  <p class="text-xs text-muted-foreground mt-1">
+                    Негайно поставить задачу в Puller для кожного цільового пристрою.
+                  </p>
+                </div>
+              </PermGuard>
             {/if}
           </div>
         </div>

@@ -160,7 +160,7 @@
             </Select>
           </Field>
           <div class="flex justify-end">
-            <PermGuard permission="manage:users">
+            <PermGuard permission="change-role:users">
               <Button size="sm" onclick={saveRole} disabled={savingRole}>
                 {savingRole ? 'Збереження…' : 'Зберегти акаунт'}
               </Button>
@@ -212,7 +212,7 @@
             <Textarea bind:value={fNotes} rows={2} placeholder="Необов'язкові нотатки…" />
           </Field>
           <div class="flex justify-end">
-            <PermGuard permission="manage:profiles">
+            <PermGuard permission="update:profiles">
               <Button size="sm" onclick={saveProfile} disabled={savingProfile}>
                 {savingProfile ? 'Збереження…' : profile ? 'Зберегти профіль' : 'Створити профіль'}
               </Button>

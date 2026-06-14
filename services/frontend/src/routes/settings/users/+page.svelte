@@ -120,7 +120,7 @@
 
 <TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Користувачі'}]} title="Користувачі">
   {#snippet actions()}
-    <PermGuard permission="manage:users">
+    <PermGuard permission="create:users">
       <Button size="sm" onclick={() => (createOpen = true)}>
         <UserPlus size={14} /> Новий користувач
       </Button>
@@ -159,24 +159,28 @@
               {user.last_login ? timeAgo(user.last_login) : 'Ніколи'}
             </TableCell>
             <TableCell>
-              <PermGuard permission="manage:users">
-                <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-                  {#if user.id !== authStore.userId}
-                  <Button variant="ghost" size="icon-sm" title="Редагувати роль"
-                    onclick={() => { selected = user; editRoleId = String(user.role_id); roleOpen = true; }}>
-                    <UserCog size={14} />
-                  </Button>
-                  {/if}
+              <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                {#if user.id !== authStore.userId}
+                  <PermGuard permission="change-role:users">
+                    <Button variant="ghost" size="icon-sm" title="Редагувати роль"
+                      onclick={() => { selected = user; editRoleId = String(user.role_id); roleOpen = true; }}>
+                      <UserCog size={14} />
+                    </Button>
+                  </PermGuard>
+                {/if}
+                <PermGuard permission="reset-password:users">
                   <Button variant="ghost" size="icon-sm" title="Скинути пароль"
                     onclick={() => { selected = user; newPassword = ''; pwOpen = true; }}>
                     <KeyRound size={14} />
                   </Button>
+                </PermGuard>
+                <PermGuard permission="delete:users">
                   <Button variant="ghost" size="icon-sm" title="Видалити" class="hover:text-destructive"
                     onclick={() => { selected = user; deleteOpen = true; }}>
                     <Trash2 size={14} />
                   </Button>
-                </div>
-              </PermGuard>
+                </PermGuard>
+              </div>
             </TableCell>
           </TableRow>
         {/each}

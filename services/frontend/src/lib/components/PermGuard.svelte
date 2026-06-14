@@ -5,6 +5,6 @@
   let { permission, children }: { permission: string; children: Snippet } = $props();
 </script>
 
-{#if authStore.can(permission)}
+{#if permission.split('|').some(p => authStore.can(p.trim()))}
   {@render children()}
 {/if}

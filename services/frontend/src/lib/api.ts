@@ -80,6 +80,7 @@ export const api = {
     assignPermissions: (roleId: number, ids: string[]) =>
       req<void>(`/api/auth/admin/roles/${roleId}/permissions`, { method: 'POST', body: JSON.stringify({ permission_ids: ids }) }),
     permissions: () => req<Permission[]>('/api/auth/admin/permissions'),
+    hierarchy: () => req<Record<string, string[]>>('/api/auth/hierarchy'),
     keys: {
       list: () => req<APIKey[]>('/api/auth/admin/keys'),
       create: (d: { name: string; gate_id: string; permission_ids: string[] }) =>
@@ -162,6 +163,11 @@ export const api = {
       req<UserProfile>('/api/v1/profiles', { method: 'POST', body: JSON.stringify(d) }),
     update: (id: string, d: Partial<UserProfile>) =>
       req<UserProfile>(`/api/v1/profiles/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+    me: {
+      get: () => req<UserProfile>('/api/v1/profiles/me'),
+      save: (d: Partial<Omit<UserProfile, 'id' | 'created_at' | 'updated_at' | 'auth_id'>>) =>
+        req<UserProfile>('/api/v1/profiles/me', { method: 'PUT', body: JSON.stringify(d) }),
+    },
   },
 
   events: {

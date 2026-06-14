@@ -154,3 +154,80 @@ func HandleDeleteUserProfile(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "User profile deleted"})
 }
+
+func HandleGetMyProfile(c *gin.Context) {
+	authID, err := parseUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	profile := repository.GetUserProfileByAuthID(authID)
+	if profile == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Profile not found"})
+		return
+	}
+	c.JSON(http.StatusOK, profile)
+}
+
+// HandleSaveMyProfile upserts the caller's own profile.
+func HandleSaveMyProfile(c *gin.Context) {
+	authID, err := parseUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var req struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Phone     string `json:"phone"`
+		GateID    string `json:"gate_id"`
+		Notes     string `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	profile := repository.GetUserProfileByAuthID(authID)
+	if profile == nil {
+		profile = repository.CreateUserProfile(&models.UserProfile{
+			AuthID:    authID,
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
+			Phone:     req.Phone,
+			GateID:    req.GateID,
+			Notes:     req.Notes,
+		})
+		c.JSON(http.StatusCreated, profile)
+		return
+	}
+
+	if req.FirstName != "" {
+		profile.FirstName = req.FirstName
+	}
+	if req.LastName != "" {
+		profile.LastName = req.LastName
+	}
+	if req.Phone != "" {
+		profile.Phone = req.Phone
+	}
+	if req.GateID != "" {
+		profile.GateID = req.GateID
+	}
+	profile.Notes = req.Notes
+
+	if err := repository.UpdateUserProfile(profile); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, profile)
+}
+
+func parseUserID(c *gin.Context) (uint, error) {
+	v, err := strconv.ParseUint(c.GetHeader("X-User-ID"), 10, 64)
+	if err != nil || v == 0 {
+		return 0, strconv.ErrSyntax
+	}
+	return uint(v), nil
+}

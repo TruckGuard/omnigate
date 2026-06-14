@@ -24,13 +24,13 @@
   }
 
   const navItems: NavItem[] = [
-    { id: 'transactions', href: '/',                 label: 'Транзакції',   icon: LayoutGrid, section: 'Операції' },
-    { id: 'devices',      href: '/settings/devices', label: 'Пристрої',     icon: Cpu,        section: 'Операції' },
-    { id: 'keys',         href: '/settings/keys',    label: 'API Ключі',    icon: KeySquare,  section: 'Операції',      permission: 'read:keys' },
+    { id: 'transactions', href: '/',                 label: 'Транзакції',   icon: LayoutGrid, section: 'Операції',      permission: 'read:transactions' },
     { id: 'types',        href: '/settings/types',   label: 'Типи подій',   icon: Layers,     section: 'Конфігурація', permission: 'read:types' },
+    { id: 'devices',      href: '/settings/devices', label: 'Пристрої',     icon: Cpu,        section: 'Конфігурація', permission: 'read:devices' },
     { id: 'gates',        href: '/settings/gates',   label: 'КПП',          icon: GitFork,    section: 'Конфігурація', permission: 'read:gates' },
-    { id: 'users',        href: '/settings/users',   label: 'Користувачі',  icon: Users,      section: 'Доступ',        permission: 'manage:users' },
+    { id: 'users',        href: '/settings/users',   label: 'Користувачі',  icon: Users,      section: 'Доступ',        permission: 'read:users' },
     { id: 'roles',        href: '/settings/roles',   label: 'Ролі',         icon: KeyRound,   section: 'Доступ',        permission: 'read:roles' },
+    { id: 'keys',         href: '/settings/keys',    label: 'API Ключі',    icon: KeySquare,  section: 'Доступ',        permission: 'read:api-keys' },
   ];
 
   const isLoginPage = $derived($page.url.pathname === '/login');
@@ -42,17 +42,10 @@
     api.auth.validate().then((data) => {
       authStore.setPermissions(data.permissions);
       authStore.setUserId(Number(data.id));
-      const authId = Number(data.id);
-      if (!isNaN(authId)) {
-        api.profiles.list(authId).then((res) => {
-          const profiles = Array.isArray(res) ? res : [res];
-          if (profiles.length > 0 && profiles[0].id) {
-            const p = profiles[0];
-            const name = [p.first_name, p.last_name].filter(Boolean).join(' ');
-            authStore.fullName = name || null;
-          }
-        }).catch(() => { /* profile is optional */ });
-      }
+      api.profiles.me.get().then((p) => {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(' ');
+        authStore.fullName = name || null;
+      }).catch(() => { /* profile is optional */ });
     }).catch(() => {
       authStore.logout();
       goto('/login');
@@ -66,7 +59,10 @@
       if (n.href === '/') return path === '/';
       return path.startsWith(n.href);
     });
-    if (item?.permission && !authStore.can(item.permission)) goto('/');
+    if (item?.permission && !authStore.can(item.permission)) {
+      const first = navItems.find(n => !n.permission || authStore.can(n.permission));
+      goto(first?.href ?? '/login');
+    }
   });
 
   async function handleLogout() {

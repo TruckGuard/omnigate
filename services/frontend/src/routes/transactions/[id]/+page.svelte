@@ -302,7 +302,7 @@
       <!-- Right-aligned controls: close + navigation -->
       <div class="ml-auto flex items-center gap-2 flex-wrap">
         {#if tx.is_open}
-          <PermGuard permission="transactions:close">
+          <PermGuard permission="close:transactions">
             <Button
               variant="outline"
               size="sm"

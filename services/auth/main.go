@@ -35,6 +35,7 @@ func main() {
 	repository.InitRedis(valkeyAddr)
 
 	seedData()
+	repository.LoadPermissionHierarchy()
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -58,25 +59,25 @@ func main() {
 		// Users
 		admin.GET("/users", handlers.HandleListUsers)
 		admin.GET("/users/:id", handlers.HandleGetUser)
-		admin.PUT("/users/:id/role", middleware.RequirePermission("manage:users"), handlers.HandleUpdateUserRole)
-		admin.DELETE("/users/:id", middleware.RequirePermission("manage:users"), handlers.HandleDeleteUser)
-		admin.POST("/users/:id/reset-password", middleware.RequirePermission("manage:users"), handlers.HandleAdminResetPassword)
+		admin.PUT("/users/:id/role", handlers.HandleUpdateUserRole)
+		admin.DELETE("/users/:id", handlers.HandleDeleteUser)
+		admin.POST("/users/:id/reset-password", handlers.HandleAdminResetPassword)
 
 		// Roles
-		admin.GET("/roles", middleware.RequirePermission("read:roles"), handlers.HandleListRoles)
-		admin.POST("/roles", middleware.RequirePermission("manage:roles"), handlers.HandleCreateRole)
-		admin.PUT("/roles/:id", middleware.RequirePermission("manage:roles"), handlers.HandleUpdateRole)
-		admin.DELETE("/roles/:id", middleware.RequirePermission("manage:roles"), handlers.HandleDeleteRole)
-		admin.POST("/roles/:id/permissions", middleware.RequirePermission("manage:roles"), handlers.HandleAssignPermissionsToRole)
+		admin.GET("/roles", handlers.HandleListRoles)
+		admin.POST("/roles", handlers.HandleCreateRole)
+		admin.PUT("/roles/:id", handlers.HandleUpdateRole)
+		admin.DELETE("/roles/:id", handlers.HandleDeleteRole)
+		admin.POST("/roles/:id/permissions", handlers.HandleAssignPermissionsToRole)
 
-		// API Keys (IoT)
-		admin.GET("/keys", middleware.RequirePermission("read:keys"), handlers.HandleListKeys)
-		admin.POST("/keys", middleware.RequirePermission("manage:keys"), handlers.HandleCreateKeyWithPerms)
-		admin.DELETE("/keys/:id", middleware.RequirePermission("manage:keys"), handlers.HandleDeleteKey)
-		admin.PUT("/keys/:id/permissions", middleware.RequirePermission("manage:keys"), handlers.HandleAssignPermissionsToKey)
-		admin.PUT("/keys/:id", middleware.RequirePermission("manage:keys"), handlers.HandleUpdateKey)
-		admin.POST("/keys/:id/digest", middleware.RequirePermission("manage:keys"), handlers.HandleSetDigestCredentials)
-		admin.DELETE("/keys/:id/digest", middleware.RequirePermission("manage:keys"), handlers.HandleClearDigestCredentials)
+		// API Keys
+		admin.GET("/keys", handlers.HandleListKeys)
+		admin.POST("/keys", handlers.HandleCreateKeyWithPerms)
+		admin.DELETE("/keys/:id", handlers.HandleDeleteKey)
+		admin.PUT("/keys/:id/permissions", handlers.HandleAssignPermissionsToKey)
+		admin.PUT("/keys/:id", handlers.HandleUpdateKey)
+		admin.POST("/keys/:id/digest", handlers.HandleSetDigestCredentials)
+		admin.DELETE("/keys/:id/digest", handlers.HandleClearDigestCredentials)
 
 		admin.GET("/permissions", handlers.HandleListPermissions)
 	}

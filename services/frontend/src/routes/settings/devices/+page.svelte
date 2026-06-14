@@ -27,7 +27,7 @@
         loading = false;
       }
       // API ключі потрібні лише для відображення назви пристрою.
-      // Якщо у користувача немає read:keys — мовчки пропускаємо;
+      // Якщо у користувача немає read:api-keys — мовчки пропускаємо;
       // deviceName() покаже source_id як fallback.
       try {
         apiKeys = await api.auth.keys.list();
@@ -56,7 +56,7 @@
 
 <TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Пристрої'}]} title="Пристрої">
   {#snippet actions()}
-    <PermGuard permission="manage:keys">
+    <PermGuard permission="create:devices">
       <Button size="sm" onclick={() => goto('/settings/devices/new')}>
         <Plus size={14} /> Додати пристрій
       </Button>
@@ -114,7 +114,7 @@
             </TableCell>
             <TableCell class="flex items-center gap-1">
               {#if cfg.trigger_enabled && triggerCount > 0}
-                <PermGuard permission="manage:keys">
+                <PermGuard permission="trigger:devices">
                   <Button
                     variant="ghost"
                     size="icon-sm"

@@ -18,14 +18,16 @@
   import {
     Select, SelectContent, SelectItem, SelectTrigger,
   } from '$lib/components/ui/select/index.js';
-  import { Plus, Trash2, KeyRound, ShieldCheck, Check, Cpu } from 'lucide-svelte';
+  import { Plus, Trash2, KeyRound, ShieldCheck, Check, Cpu, Search } from 'lucide-svelte';
   import PermGuard from '$lib/components/PermGuard.svelte';
   import ConfirmDelete from '$lib/components/ConfirmDelete.svelte';
 
   let keys        = $state<APIKey[]>([]);
   let gates       = $state<Gate[]>([]);
   let allPerms    = $state<Permission[]>([]);
+  let hierarchy   = $state<Record<string, string[]>>({});
   let loading     = $state(true);
+  let permSearch  = $state('');
 
   let createOpen   = $state(false);
   let revealOpen   = $state(false);
@@ -92,22 +94,52 @@
 
   async function load() {
     try {
-      [keys, gates, allPerms] = await Promise.all([
+      [keys, allPerms, hierarchy] = await Promise.all([
         api.auth.keys.list(),
-        api.gates.list(),
         api.auth.permissions(),
+        api.auth.hierarchy(),
       ]);
     } catch {
       toast.error('Помилка завантаження ключів');
     } finally {
       loading = false;
     }
+    // Gates are optional — used only for display names; missing read:gates is fine
+    try { gates = await api.gates.list(); } catch { /* show gate_id as fallback */ }
+  }
+
+  function inheritedFrom(selected: string[]): Set<string> {
+    const result = new Set<string>();
+    const queue = [...selected];
+    const visited = new Set<string>();
+    while (queue.length > 0) {
+      const p = queue.shift()!;
+      if (visited.has(p)) continue;
+      visited.add(p);
+      for (const child of (hierarchy[p] ?? [])) {
+        result.add(child);
+        queue.push(child);
+      }
+    }
+    return result;
+  }
+
+  function permsByModuleFiltered(search: string): Map<string, Permission[]> {
+    const q = search.toLowerCase().trim();
+    const map = new Map<string, Permission[]>();
+    for (const p of allPerms) {
+      if (q && !p.id.toLowerCase().includes(q) && !p.name.toLowerCase().includes(q)) continue;
+      const list = map.get(p.module) ?? [];
+      list.push(p);
+      map.set(p.module, list);
+    }
+    return map;
   }
 
   $effect(() => { load(); });
 
   function openCreate() {
-    newName = ''; newGateId = ''; newPermIds = [];
+    newName = ''; newGateId = ''; newPermIds = []; permSearch = '';
     createOpen = true;
   }
 
@@ -149,6 +181,7 @@
   function openPerms(k: APIKey) {
     selected = k;
     editPermIds = k.permissions.map(p => p.id);
+    permSearch = '';
     permsOpen = true;
   }
 
@@ -199,20 +232,11 @@
     }
   }
 
-  const permsByModule = $derived(() => {
-    const map = new Map<string, Permission[]>();
-    for (const p of allPerms) {
-      const g = map.get(p.module) ?? [];
-      g.push(p);
-      map.set(p.module, g);
-    }
-    return map;
-  });
 </script>
 
 <TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'API ключі'}]} title="API ключі">
   {#snippet actions()}
-    <PermGuard permission="manage:keys">
+    <PermGuard permission="create:api-keys">
       <Button size="sm" onclick={openCreate}>
         <Plus size={14} /> Новий ключ
       </Button>
@@ -265,22 +289,28 @@
             </TableCell>
             <TableCell class="text-xs text-muted-foreground">{fmtDate(k.created_at)}</TableCell>
             <TableCell>
-              <PermGuard permission="manage:keys">
-                <div class="flex gap-1">
+              <div class="flex gap-1">
+                <PermGuard permission="create-digest:api-keys|delete-digest:api-keys">
                   <Button variant="ghost" size="icon-sm" title="Digest Auth (ITSAPI)" onclick={() => openDigest(k)}>
                     <Cpu size={14} class={k.digest_username ? 'text-primary' : ''} />
                   </Button>
+                </PermGuard>
+                <PermGuard permission="update-permissions:api-keys">
                   <Button variant="ghost" size="icon-sm" title="Дозволи" onclick={() => openPerms(k)}>
                     <ShieldCheck size={14} />
                   </Button>
+                </PermGuard>
+                <PermGuard permission="update:api-keys">
                   <Button variant="ghost" size="icon-sm" title="Редагувати" onclick={() => openEdit(k)}>
                     <KeyRound size={14} />
                   </Button>
+                </PermGuard>
+                <PermGuard permission="delete:api-keys">
                   <Button variant="ghost" size="icon-sm" title="Видалити" class="hover:text-destructive" onclick={() => openDelete(k)}>
                     <Trash2 size={14} />
                   </Button>
-                </div>
-              </PermGuard>
+                </PermGuard>
+              </div>
             </TableCell>
           </TableRow>
         {/each}
@@ -308,35 +338,55 @@
       <Field label="ID КПП">
         <Input bind:value={newGateId} placeholder="gate-north (необов'язково)" />
       </Field>
-      <div>
-        <p class="text-xs font-medium mb-2">Дозволи</p>
-        <div class="space-y-1 max-h-[220px] overflow-y-auto">
-          {#each [...permsByModule()] as [module, perms]}
-            <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">{module}</p>
+      <div class="space-y-2">
+        <p class="text-xs font-medium">Дозволи</p>
+        <div class="relative">
+          <Search size={14} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input bind:value={permSearch} placeholder="Пошук…" class="pl-7 h-8 text-sm" />
+        </div>
+        <div class="space-y-1 max-h-[200px] overflow-y-auto">
+          {#each [inheritedFrom(newPermIds)] as inherited}
+          {#each [...permsByModuleFiltered(permSearch)] as [module, perms]}
+            <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1 first:mt-0">{module}</p>
             {#each perms as p}
               {@const active = newPermIds.includes(p.id)}
+              {@const isInherited = !active && inherited.has(p.id)}
               <button
                 type="button"
                 onclick={() => toggleNewPerm(p.id)}
                 class="w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors
-                  {active ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
+                  {active
+                    ? 'bg-primary/10 border-primary/30 text-primary'
+                    : isInherited
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15'
+                    : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
               >
                 <div class="text-left">
                   <span class="font-mono font-medium text-xs">{p.id}</span>
-                  {#if p.description}
-                    <span class="block text-[11px] mt-0.5 opacity-70">{p.description}</span>
+                  {#if isInherited}
+                    <span class="block text-[11px] mt-0.5 opacity-60">↳ через ієрархію</span>
+                  {:else if p.name}
+                    <span class="block text-[11px] mt-0.5 opacity-70">{p.name}</span>
                   {/if}
                 </div>
-                {#if active}<Check size={14} class="shrink-0" />{/if}
+                {#if active}
+                  <Check size={14} class="shrink-0" />
+                {:else if isInherited}
+                  <Check size={14} class="shrink-0 opacity-40" />
+                {/if}
               </button>
             {/each}
           {/each}
+          {/each}
+          {#if [...permsByModuleFiltered(permSearch)].length === 0}
+            <p class="text-sm text-muted-foreground text-center py-4">Нічого не знайдено</p>
+          {/if}
         </div>
       </div>
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (createOpen = false)}>Скасувати</Button>
-      <PermGuard permission="manage:keys">
+      <PermGuard permission="create:api-keys">
         <Button onclick={handleCreate} disabled={saving || !newName}>
           {saving ? 'Створення…' : 'Створити ключ'}
         </Button>
@@ -390,7 +440,7 @@
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (editOpen = false)}>Скасувати</Button>
-      <PermGuard permission="manage:keys">
+      <PermGuard permission="update:api-keys">
         <Button onclick={handleEdit} disabled={saving}>
           {saving ? 'Збереження…' : 'Зберегти'}
         </Button>
@@ -405,31 +455,51 @@
     <DialogHeader>
       <DialogTitle>Дозволи — {selected?.owner_name}</DialogTitle>
     </DialogHeader>
-    <div class="space-y-1 max-h-[400px] overflow-y-auto py-2">
-      {#each [...permsByModule()] as [module, perms]}
-        <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">{module}</p>
+    <div class="relative">
+      <Search size={14} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+      <Input bind:value={permSearch} placeholder="Пошук…" class="pl-7 h-8 text-sm" />
+    </div>
+    <div class="space-y-1 max-h-[360px] overflow-y-auto">
+      {#each [inheritedFrom(editPermIds)] as inherited}
+      {#each [...permsByModuleFiltered(permSearch)] as [module, perms]}
+        <p class="text-[11px] uppercase tracking-wide text-muted-foreground mt-3 mb-1 first:mt-0">{module}</p>
         {#each perms as p}
           {@const active = editPermIds.includes(p.id)}
+          {@const isInherited = !active && inherited.has(p.id)}
           <button
             type="button"
             onclick={() => togglePerm(p.id)}
             class="w-full flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors
-              {active ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
+              {active
+                ? 'bg-primary/10 border-primary/30 text-primary'
+                : isInherited
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15'
+                : 'bg-background border-border text-muted-foreground hover:bg-muted'}"
           >
             <div class="text-left">
               <span class="font-mono font-medium text-xs">{p.id}</span>
-              {#if p.description}
-                <span class="block text-[11px] mt-0.5 opacity-70">{p.description}</span>
+              {#if isInherited}
+                <span class="block text-[11px] mt-0.5 opacity-60">↳ через ієрархію</span>
+              {:else if p.name}
+                <span class="block text-[11px] mt-0.5 opacity-70">{p.name}</span>
               {/if}
             </div>
-            {#if active}<Check size={14} class="shrink-0" />{/if}
+            {#if active}
+              <Check size={14} class="shrink-0" />
+            {:else if isInherited}
+              <Check size={14} class="shrink-0 opacity-40" />
+            {/if}
           </button>
         {/each}
       {/each}
+      {/each}
+      {#if [...permsByModuleFiltered(permSearch)].length === 0}
+        <p class="text-sm text-muted-foreground text-center py-6">Нічого не знайдено</p>
+      {/if}
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (permsOpen = false)}>Скасувати</Button>
-      <PermGuard permission="manage:keys">
+      <PermGuard permission="update-permissions:api-keys">
         <Button onclick={handlePerms} disabled={saving}>
           {saving ? 'Збереження…' : 'Оновити дозволи'}
         </Button>
@@ -461,16 +531,18 @@
     </div>
     <DialogFooter class="flex-col gap-2 sm:flex-row">
       {#if selected?.digest_username}
-        <Button
-          variant="outline"
-          class="text-destructive hover:text-destructive sm:mr-auto"
-          onclick={() => { digestOpen = false; handleClearDigest(selected!); }}
-        >
-          Видалити Digest Auth
-        </Button>
+        <PermGuard permission="delete-digest:api-keys">
+          <Button
+            variant="outline"
+            class="text-destructive hover:text-destructive sm:mr-auto"
+            onclick={() => { digestOpen = false; handleClearDigest(selected!); }}
+          >
+            Видалити Digest Auth
+          </Button>
+        </PermGuard>
       {/if}
       <Button variant="outline" onclick={() => (digestOpen = false)}>Скасувати</Button>
-      <PermGuard permission="manage:keys">
+      <PermGuard permission="create-digest:api-keys">
         <Button onclick={handleSetDigest} disabled={saving || !digestUsername || !digestPassword}>
           {saving ? 'Збереження…' : 'Зберегти'}
         </Button>

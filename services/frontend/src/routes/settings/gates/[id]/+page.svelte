@@ -140,7 +140,7 @@
             <Input type="number" bind:value={maxEvents} min={1} max={10000} />
           </Field>
           <div class="flex justify-end pt-1">
-            <PermGuard permission="manage:gates">
+            <PermGuard permission="update:gates">
               <Button size="sm" onclick={saveSettings} disabled={saving}>
                 {saving ? 'Збереження…' : 'Зберегти налаштування'}
               </Button>

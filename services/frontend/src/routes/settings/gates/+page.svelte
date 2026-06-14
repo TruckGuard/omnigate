@@ -94,7 +94,7 @@
 
 <TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'КПП'}]} title="КПП">
   {#snippet actions()}
-    <PermGuard permission="manage:gates">
+    <PermGuard permission="create:gates">
       <Button size="sm" onclick={openCreate}>
         <Plus size={14} /> Новий КПП
       </Button>
@@ -126,17 +126,19 @@
               </Badge>
             </TableCell>
             <TableCell>
-              <PermGuard permission="manage:gates">
-                <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+              <div role="presentation" class="flex gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                <PermGuard permission="update:gates">
                   <Button variant="ghost" size="icon-sm" onclick={() => openEdit(g)}>
                     <Pencil size={13} />
                   </Button>
+                </PermGuard>
+                <PermGuard permission="delete:gates">
                   <Button variant="ghost" size="icon-sm" class="hover:text-destructive"
                     onclick={() => { selected = g; deleteOpen = true; }}>
                     <Trash2 size={13} />
                   </Button>
-                </div>
-              </PermGuard>
+                </PermGuard>
+              </div>
             </TableCell>
           </TableRow>
         {/each}
@@ -180,7 +182,7 @@
     </div>
     <DialogFooter>
       <Button variant="outline" onclick={() => (editOpen = false)}>Скасувати</Button>
-      <PermGuard permission="manage:gates">
+      <PermGuard permission={isNew ? 'create:gates' : 'update:gates'}>
         <Button onclick={handleSave} disabled={saving || !fGateId || !fName}>
           {saving ? 'Збереження…' : isNew ? 'Створити КПП' : 'Зберегти'}
         </Button>
