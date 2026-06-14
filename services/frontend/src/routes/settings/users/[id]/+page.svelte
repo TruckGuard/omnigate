@@ -191,7 +191,7 @@
           <Field label="Телефон">
             <Input bind:value={fPhone} placeholder="+380991234567" />
           </Field>
-          <Field label="Шлагбаум">
+          <Field label="КПП">
             <Select type="single" bind:value={fGate}>
               <SelectTrigger>
                 {#if fGate}

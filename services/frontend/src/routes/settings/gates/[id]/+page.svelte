@@ -41,7 +41,7 @@
         autoClose  = cfg.auto_close_transactions ?? true;
         maxEvents  = cfg.max_events_per_transaction ?? 100;
       } catch {
-        toast.error('Шлагбаум не знайдено');
+        toast.error('КПП не знайдено');
         goto('/settings/gates');
       } finally {
         loading = false;
@@ -68,10 +68,10 @@
   }
 </script>
 
-<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Шлагбауми',href:'/settings/gates'},{label:gate?.name ?? '…'}]}>
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'КПП',href:'/settings/gates'},{label:gate?.name ?? '…'}]}>
   {#snippet actions()}
     <Button variant="outline" size="sm" onclick={() => goto('/settings/gates')}>
-      <ChevronLeft size={14} /> Шлагбауми
+      <ChevronLeft size={14} /> КПП
     </Button>
   {/snippet}
 </TopBar>

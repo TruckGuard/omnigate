@@ -37,7 +37,7 @@
 
   async function load() {
     try { gates = await api.gates.list(); }
-    catch { toast.error('Помилка завантаження шлагбаумів'); }
+    catch { toast.error('Помилка завантаження КПП'); }
     finally { loading = false; }
   }
 
@@ -57,18 +57,18 @@
   }
 
   async function handleSave() {
-    if (!fGateId || !fName) { toast.error('ID та назва шлагбауму обов\'язкові'); return; }
+    if (!fGateId || !fName) { toast.error('ID та назва КПП обов\'язкові'); return; }
     saving = true;
     try {
       if (isNew) {
         await api.gates.create({ gate_id: fGateId, name: fName, location: fLocation, description: fDescription });
-        toast.success('Шлагбаум створено');
+        toast.success('КПП створено');
       } else if (selected) {
         await api.gates.update(selected.id, {
           name: fName, location: fLocation,
           description: fDescription, status: fActive ? 'active' : 'inactive',
         });
-        toast.success('Шлагбаум збережено');
+        toast.success('КПП збережено');
       }
       editOpen = false;
       await load();
@@ -83,20 +83,20 @@
     if (!selected) return;
     try {
       await api.gates.delete(selected.id);
-      toast.success('Шлагбаум видалено');
+      toast.success('КПП видалено');
       deleteOpen = false;
       await load();
     } catch {
-      toast.error('Помилка видалення шлагбауму');
+      toast.error('Помилка видалення КПП');
     }
   }
 </script>
 
-<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'Шлагбауми'}]} title="Шлагбауми">
+<TopBar crumbs={[{label:'OmniGate',href:'/'},{label:'КПП'}]} title="КПП">
   {#snippet actions()}
     <PermGuard permission="manage:gates">
       <Button size="sm" onclick={openCreate}>
-        <Plus size={14} /> Новий шлагбаум
+        <Plus size={14} /> Новий КПП
       </Button>
     </PermGuard>
   {/snippet}
@@ -107,7 +107,7 @@
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead class="w-[160px]">ID шлагбауму</TableHead>
+          <TableHead class="w-[160px]">ID КПП</TableHead>
           <TableHead>Назва</TableHead>
           <TableHead class="hidden sm:table-cell">Місцезнаходження</TableHead>
           <TableHead class="w-[90px]">Статус</TableHead>
@@ -142,7 +142,7 @@
         {/each}
         {#if !loading && gates.length === 0}
           <TableRow>
-            <TableCell colspan={5} class="py-10 text-center text-muted-foreground">Шлагбауми не налаштовані.</TableCell>
+            <TableCell colspan={5} class="py-10 text-center text-muted-foreground">КПП не налаштовані.</TableCell>
           </TableRow>
         {/if}
       </TableBody>
@@ -154,11 +154,11 @@
 <Dialog bind:open={editOpen}>
   <DialogContent class="max-w-md">
     <DialogHeader>
-      <DialogTitle>{isNew ? 'Новий шлагбаум' : `Редагувати — ${selected?.gate_id}`}</DialogTitle>
+      <DialogTitle>{isNew ? 'Новий КПП' : `Редагувати — ${selected?.gate_id}`}</DialogTitle>
     </DialogHeader>
     <div class="space-y-4 py-2">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="ID шлагбауму" hint="Короткий унікальний ідентифікатор, напр. gate-north">
+        <Field label="ID КПП" hint="Короткий унікальний ідентифікатор, напр. gate-north">
           <Input bind:value={fGateId} placeholder="gate-north" disabled={!isNew} class="font-mono" />
         </Field>
         <Field label="Назва">
@@ -182,16 +182,16 @@
       <Button variant="outline" onclick={() => (editOpen = false)}>Скасувати</Button>
       <PermGuard permission="manage:gates">
         <Button onclick={handleSave} disabled={saving || !fGateId || !fName}>
-          {saving ? 'Збереження…' : isNew ? 'Створити шлагбаум' : 'Зберегти'}
+          {saving ? 'Збереження…' : isNew ? 'Створити КПП' : 'Зберегти'}
         </Button>
       </PermGuard>
     </DialogFooter>
   </DialogContent>
 </Dialog>
 
-<ConfirmDelete bind:open={deleteOpen} title="Видалити шлагбаум?" onconfirm={handleDelete}>
+<ConfirmDelete bind:open={deleteOpen} title="Видалити КПП?" onconfirm={handleDelete}>
   {#snippet description()}
-    Шлагбаум <span class="font-mono">{selected?.gate_id}</span> буде назавжди видалено.
-    Пристрої та транзакції збережуть рядок з ID шлагбауму.
+    КПП <span class="font-mono">{selected?.gate_id}</span> буде назавжди видалено.
+    Пристрої та транзакції збережуть рядок з ID КПП.
   {/snippet}
 </ConfirmDelete>

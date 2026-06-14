@@ -349,7 +349,7 @@
         <span>{fmtDateTime(tx.created_at)}</span>
       </div>
       <div class="flex items-center gap-1.5">
-        <span class="text-muted-foreground">Шлагбаум</span>
+        <span class="text-muted-foreground">КПП</span>
         <GateBadge gateId={tx.gate_id} />
       </div>
       <span class="text-muted-foreground">

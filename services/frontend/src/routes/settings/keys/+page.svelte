@@ -227,7 +227,7 @@
         <TableRow>
           <TableHead class="w-[50px]">ID</TableHead>
           <TableHead>Власник</TableHead>
-          <TableHead class="w-[160px]">Шлагбаум</TableHead>
+          <TableHead class="w-[160px]">КПП</TableHead>
           <TableHead class="w-[80px]">Статус</TableHead>
           <TableHead class="w-[100px]">Дозволи</TableHead>
           <TableHead class="w-[110px]">Digest Auth</TableHead>
@@ -305,7 +305,7 @@
       <Field label="Ім'я власника / пристрою">
         <Input bind:value={newName} placeholder="cam-north-01" />
       </Field>
-      <Field label="ID шлагбауму">
+      <Field label="ID КПП">
         <Input bind:value={newGateId} placeholder="gate-north (необов'язково)" />
       </Field>
       <div>
@@ -370,7 +370,7 @@
       <Field label="Ім'я власника">
         <Input bind:value={editName} />
       </Field>
-      <Field label="Шлагбаум">
+      <Field label="КПП">
         <Select type="single" bind:value={editGateId}>
           <SelectTrigger>
             {gates.find(g => g.gate_id === editGateId)?.name ?? (editGateId || 'Не обрано')}

@@ -176,9 +176,9 @@
       gates = await api.gates.list();
       onCreated(newGateId);
       creatingGate = false; creatingKeyGate = false; newGateId = ''; newGateName = '';
-      toast.success('Шлагбаум створено');
+      toast.success('КПП створено');
     } catch {
-      toast.error('Помилка створення шлагбауму');
+      toast.error('Помилка створення КПП');
     } finally {
       savingGate = false;
     }
@@ -307,7 +307,7 @@
                     <Input placeholder="Власник / назва пристрою" bind:value={newKeyName} />
                     <Select type="single" bind:value={newKeyGateId}>
                       <SelectTrigger>
-                        {gates.find(g => g.gate_id === newKeyGateId)?.name ?? (newKeyGateId || 'Оберіть шлагбаум (необов\'язково)…')}
+                        {gates.find(g => g.gate_id === newKeyGateId)?.name ?? (newKeyGateId || 'Оберіть КПП (необов\'язково)…')}
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Немає</SelectItem>
@@ -318,11 +318,11 @@
                     </Select>
                     {#if !creatingKeyGate}
                       <Button variant="outline" size="sm" onclick={() => (creatingKeyGate = true)}>
-                        <Plus size={12} /> Створити новий шлагбаум
+                        <Plus size={12} /> Створити новий КПП
                       </Button>
                     {:else}
                       <div class="rounded-md border border-border p-3 space-y-2 bg-background">
-                        <p class="text-sm font-medium">Новий шлагбаум</p>
+                        <p class="text-sm font-medium">Новий КПП</p>
                         <Input placeholder="gate-north (ID)" bind:value={newGateId} class="font-mono" />
                         <Input placeholder="Північна брама (назва)" bind:value={newGateName} />
                         <div class="flex gap-2">
@@ -347,11 +347,11 @@
             {/if}
           </Field>
 
-          <Field label="Шлагбаум" hint="Шлагбаум, якому слугує цей пристрій.">
+          <Field label="КПП" hint="КПП, якому слугує цей пристрій.">
             <div class="space-y-2">
               <Select type="single" bind:value={gateId}>
                 <SelectTrigger>
-                  {gates.find(g => g.gate_id === gateId)?.name ?? (gateId || 'Оберіть шлагбаум…')}
+                  {gates.find(g => g.gate_id === gateId)?.name ?? (gateId || 'Оберіть КПП…')}
                 </SelectTrigger>
                 <SelectContent>
                   {#each gates as g}
@@ -361,11 +361,11 @@
               </Select>
               {#if !creatingGate}
                 <Button variant="outline" size="sm" onclick={() => (creatingGate = true)}>
-                  <Plus size={12} /> Створити новий шлагбаум
+                  <Plus size={12} /> Створити новий КПП
                 </Button>
               {:else}
                 <div class="rounded-md border border-border p-3 space-y-2 bg-muted/30">
-                  <p class="text-sm font-medium">Новий шлагбаум</p>
+                  <p class="text-sm font-medium">Новий КПП</p>
                   <Input placeholder="gate-north (ID)" bind:value={newGateId} class="font-mono" />
                   <Input placeholder="Північна брама (назва)" bind:value={newGateName} />
                   <div class="flex gap-2">
@@ -573,7 +573,7 @@
           автоматично приєднана до тієї ж транзакції.
         </p>
 
-        <Field label="Час очікування (секунди)" hint="Скільки секунд зберігати резервування. 0 — використати TTL шлагбауму.">
+        <Field label="Час очікування (секунди)" hint="Скільки секунд зберігати резервування. 0 — використати TTL КПП.">
           <Input type="number" min="0" bind:value={awaitTTLSeconds} placeholder="0" class="w-40" />
         </Field>
 

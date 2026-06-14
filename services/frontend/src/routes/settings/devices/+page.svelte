@@ -71,7 +71,7 @@
         <TableRow>
           <TableHead>Пристрій</TableHead>
           <TableHead class="hidden md:table-cell w-[120px] text-muted-foreground text-xs">Source ID</TableHead>
-          <TableHead class="hidden sm:table-cell w-[160px]">Шлагбаум</TableHead>
+          <TableHead class="hidden sm:table-cell w-[160px]">КПП</TableHead>
           <TableHead class="hidden sm:table-cell w-[150px]">Тип події</TableHead>
           <TableHead class="hidden md:table-cell w-[140px]">Тригери</TableHead>
           <TableHead class="w-[90px]">Статус</TableHead>

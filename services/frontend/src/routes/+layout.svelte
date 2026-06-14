@@ -28,7 +28,7 @@
     { id: 'devices',      href: '/settings/devices', label: 'Пристрої',     icon: Cpu,        section: 'Операції' },
     { id: 'keys',         href: '/settings/keys',    label: 'API Ключі',    icon: KeySquare,  section: 'Операції',      permission: 'read:keys' },
     { id: 'types',        href: '/settings/types',   label: 'Типи подій',   icon: Layers,     section: 'Конфігурація', permission: 'read:types' },
-    { id: 'gates',        href: '/settings/gates',   label: 'Шлагбауми',    icon: GitFork,    section: 'Конфігурація', permission: 'read:gates' },
+    { id: 'gates',        href: '/settings/gates',   label: 'КПП',          icon: GitFork,    section: 'Конфігурація', permission: 'read:gates' },
     { id: 'users',        href: '/settings/users',   label: 'Користувачі',  icon: Users,      section: 'Доступ',        permission: 'manage:users' },
     { id: 'roles',        href: '/settings/roles',   label: 'Ролі',         icon: KeyRound,   section: 'Доступ',        permission: 'read:roles' },
   ];
@@ -112,7 +112,7 @@
     if (path === '/profile') return 'Профіль | OmniGate';
     if (path.startsWith('/transactions/')) return 'Транзакція | OmniGate';
     if (path.startsWith('/settings/devices/')) return 'Пристрій | OmniGate';
-    if (path.startsWith('/settings/gates/')) return 'Шлагбаум | OmniGate';
+    if (path.startsWith('/settings/gates/')) return 'КПП | OmniGate';
     if (path.startsWith('/settings/users/')) return 'Користувач | OmniGate';
     const item = navItems.find(n => n.href === '/' ? path === '/' : path === n.href);
     return item ? `${item.label} | OmniGate` : 'OmniGate';

@@ -178,7 +178,7 @@
           <Field label="Телефон">
             <Input bind:value={pfPhone} placeholder="+380991234567" />
           </Field>
-          <Field label="Шлагбаум">
+          <Field label="КПП">
             <Select type="single" bind:value={pfGate}>
               <SelectTrigger>
                 {gates.find(g => g.gate_id === pfGate)?.name ?? (pfGate || 'Не обрано')}

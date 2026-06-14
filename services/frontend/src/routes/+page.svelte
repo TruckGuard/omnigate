@@ -193,10 +193,10 @@
 
     <Select type="single" bind:value={gateFilter} onValueChange={() => { page = 1; }}>
       <SelectTrigger class="w-[200px]">
-        {gateFilter ? gates.find(g => g.gate_id === gateFilter)?.name ?? gateFilter : 'Всі шлагбауми'}
+        {gateFilter ? gates.find(g => g.gate_id === gateFilter)?.name ?? gateFilter : 'Всі КПП'}
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="">Всі шлагбауми</SelectItem>
+        <SelectItem value="">Всі КПП</SelectItem>
         {#each gates as g}
           <SelectItem value={g.gate_id}>{g.name}</SelectItem>
         {/each}
@@ -235,7 +235,7 @@
         <TableRow>
           <TableHead class="w-[110px]">Код</TableHead>
           <TableHead class="w-[130px]">Час</TableHead>
-          <TableHead class="hidden sm:table-cell w-[160px]">Шлагбаум</TableHead>
+          <TableHead class="hidden sm:table-cell w-[160px]">КПП</TableHead>
           {#if debouncedSearch}
             <TableHead class="hidden md:table-cell w-[160px]">Знайдено</TableHead>
           {/if}
